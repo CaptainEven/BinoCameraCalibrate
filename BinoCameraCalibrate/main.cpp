@@ -17,9 +17,10 @@
 #include <opencv2/highgui.hpp>
 
 
-
 using namespace cv;
 using namespace std;
+
+void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>& obj_pts);
 
 
 bool image_capture = false;//定义全局变量，用于相机采集标定图像
@@ -33,19 +34,18 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 
 }
 
-void calobjectPoints(vector<Point3f>& obj, Size &boardSize, int squareSize);
 
 int main(int argc, char* argv[])
 {
-	Size boardSize = Size(10, 8);  // 标定棋盘格的内角点尺寸（如7x7）
-	float squareSize = 20.0;       // 标定板上黑白格子的实际边长（mm）
-	int nFrames = 20;             // 用于标定的图像数目
-	string outputFileName;         // 输出文件的名称
+	Size board_size = Size(10, 8);  // 标定棋盘格的内角点尺寸(如7x7): cols, rows
+	float square_size = 20.0;        // 标定板上黑白格子的实际边长（mm）
+	int nFrames = 20;               // 用于标定的图像数目
+	string outputFileName;          // 输出文件的名称
 	bool showUndistorsed = true;
 	//vector<string> imageList;
 	vector<string> img_list_1;
 	vector<string> img_list_2;
-	Size imageSize;
+	Size img_size;
 	Size imageSize1;
 	Size imageSize2;
 
@@ -86,12 +86,12 @@ int main(int argc, char* argv[])
 		inputCapture2.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
 		*/
 		//namedWindow("标定图像采集预览窗口",CV_WINDOW_AUTOSIZE);
-		namedWindow("左相机（相机1）标定图像采集预览窗口", WINDOW_AUTOSIZE);
-		namedWindow("右相机（相机2）标定图像采集预览窗口", WINDOW_AUTOSIZE);
+		cv::namedWindow("左相机（相机1）标定图像采集预览窗口", WINDOW_AUTOSIZE);
+		cv::namedWindow("右相机（相机2）标定图像采集预览窗口", WINDOW_AUTOSIZE);
 
 		//设置鼠标事件函数，用于相机采集标定图像（在指定窗口双击鼠标左键一次采集一张图像）
 		//cvSetMouseCallback("标定图像采集预览窗口",on_mouse,NULL);
-		setMouseCallback("左相机（相机1）标定图像采集预览窗口", on_mouse, NULL);
+		cv::setMouseCallback("左相机（相机1）标定图像采集预览窗口", on_mouse, NULL);
 
 		//Mat src_image;
 		Mat src_img_1;
@@ -167,10 +167,10 @@ int main(int argc, char* argv[])
 
 	//vector<vector<Point2f> > imagePoints;//各个图像找到的角点的集合
 	//vector<vector<Point3f> > objectPoints(1);
-	vector<vector<Point2f>> img_pts_1;
-	vector<vector<Point3f>> obj_pts_1(1);//暂时先定义一维的objectPoints1，等确定了imagePoints的维数之后再进行扩容
-	vector<vector<Point2f>> img_pts_2;
-	vector<vector<Point3f>> obj_pts_2(1);
+	vector<vector<Point2f>> img_pts_1;     // 存放左视图所有图像的平面角点 
+	vector<vector<Point3f>> obj_pts_1(1);  //暂时先定义一维的obj_pts_1，等确定了img_pts的维数之后再进行扩容
+	vector<vector<Point2f>> img_pts_2;     // 存放右视图所有图像的平面角点
+	vector<vector<Point3f>> obj_pts_2(1);  // 存放右视图所有空间角点
 	/*
 	//调用calobjectPoints()函数用于得到棋盘格角点的世界坐标集
 	calobjectPoints(objectPoints[0], boardSize,squareSize);
@@ -200,89 +200,115 @@ int main(int argc, char* argv[])
 			destroyWindow("角点获取情况");
 		}
 	}
-	objectPoints.resize(imagePoints.size(),objectPoints[0]);
+	objectPoints.resize(imagePoints.size(), objectPoints[0]);
 	*/
 
-	calobjectPoints(obj_pts_1[0], boardSize, (int)squareSize);
+	// ---------- 处理左视图
+	add_obj_pts(board_size, (int)square_size, obj_pts_1[0]);
 
 	//可通过改变变量displayCorners1的值来确定是否展示获取角点后的图像
-	bool displayCorners1 = false;
-	for (int i = 0; i < img_list_1.size(); i++)
-	{
-		Mat src1 = imread(img_list_1[i], 1);
-		imageSize = src1.size();
-		vector<Point2f> pointBuf1;
-		//使用不同的FLAG变量，标定结果差别很小
-		bool found1 = findChessboardCorners(src1, boardSize, pointBuf1);
-		//bool found1=findChessboardCorners( src1, boardSize, pointBuf1, CALIB_CB_ADAPTIVE_THRESH);
-		//bool found1=findChessboardCorners( src1, boardSize, pointBuf1, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);//这一步比较费时
-		if (found1)
-		{
-			Mat grayimage1;
-			cvtColor(src1, grayimage1, COLOR_BGR2GRAY);
-			cornerSubPix(grayimage1, pointBuf1, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.1));
-			img_pts_1.push_back(pointBuf1);
+	bool display_corners_1 = true;
 
-			if (displayCorners1)
+	// 计算左视图所有的平面角点
+	for (int i = 0; i < img_list_1.size(); ++i)
+	{
+		Mat src_1 = imread(img_list_1[i], 1);
+		img_size = src_1.size();
+		vector<Point2f> pts_buff_1;
+
+		//使用不同的FLAG变量，标定结果差别很小
+		bool found_1 = cv::findChessboardCorners(src_1, board_size, pts_buff_1);
+		//bool found_1 = findChessboardCorners(src1, board_size, pt_buff_1, CALIB_CB_ADAPTIVE_THRESH);
+		//bool found_1 = findChessboardCorners(src1, board_size, pt_buff_1, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);  // 这一步比较费时
+
+		if (found_1)
+		{
+			Mat gray_img_1;
+			cv::cvtColor(src_1, gray_img_1, COLOR_BGR2GRAY);
+
+			cv::cornerSubPix(gray_img_1,
+				pts_buff_1,
+				Size(11, 11),
+				Size(-1, -1),
+				TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.1));
+
+			// 存放当前左视图平面角点
+			img_pts_1.push_back(pts_buff_1);
+
+			if (display_corners_1)
 			{
-				Mat MidImage1 = src1.clone();
-				drawChessboardCorners(MidImage1, boardSize, Mat(pointBuf1), found1);
-				imshow("左相机角点获取情况", MidImage1);
-				waitKey(300);
+				Mat src_show_1 = src_1.clone();
+				cv::drawChessboardCorners(src_show_1, board_size, Mat(pts_buff_1), found_1);
+				cv::imshow("左相机角点获取情况", src_show_1);
+				cv::waitKey(300);
 			}
 
-			destroyWindow("左相机角点获取情况");
+			cv::destroyWindow("左相机角点获取情况");
 		}
 	}
-	//利用resize()函数对objectPoints向量进行扩容
-	obj_pts_1.resize(img_pts_1.size(), obj_pts_1[0]);
 
-	calobjectPoints(obj_pts_2[0], boardSize, (int)squareSize);
-	bool displayCorners2 = false;
+	// 对object points向量进行扩容
+	obj_pts_1.resize(img_pts_1.size(), obj_pts_1[0]);  // 复制(左视图图像个数)份
+
+	// ---------- 处理右视图
+	add_obj_pts(board_size, (int)square_size, obj_pts_2[0]);
+
+	bool display_corners_2 = true;
 	for (int i = 0; i < img_list_2.size(); i++)
 	{
-		Mat src2 = imread(img_list_2[i], 1);
+		Mat src_2 = imread(img_list_2[i], 1);
 		//imageSize= src2.size();
-		vector<Point2f> pointBuf2;
+		vector<Point2f> pts_buff_2;
 
 		//使用不同的FLAG变量，标定结果差别很小
-		bool found2 = findChessboardCorners(src2, boardSize, pointBuf2);
-		//bool found2=findChessboardCorners( src2, boardSize, pointBuf2, CALIB_CB_ADAPTIVE_THRESH);
-		//bool found2=findChessboardCorners( src2, boardSize, pointBuf2, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);//这一步比较费时
-		if (found2)
+		bool found_2 = cv::findChessboardCorners(src_2, board_size, pts_buff_2);
+		//bool found_2 = findChessboardCorners(src_2, board_size, pts_buff_2, CALIB_CB_ADAPTIVE_THRESH);
+		//bool found_2 = findChessboardCorners(src_2, board_size, pts_buff_2, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);  // 这一步比较费时
+		if (found_2)
 		{
-			Mat grayimage2;
-			cvtColor(src2, grayimage2, COLOR_BGR2GRAY);
-			cornerSubPix(grayimage2, pointBuf2, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.1));
-			img_pts_2.push_back(pointBuf2);
-			if (displayCorners2)
+			Mat gray_img_2;
+			cvtColor(src_2, gray_img_2, COLOR_BGR2GRAY);
+
+			cv::cornerSubPix(gray_img_2,
+				pts_buff_2,
+				Size(11, 11),
+				Size(-1, -1),
+				TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.1));
+
+			img_pts_2.push_back(pts_buff_2);
+			if (display_corners_2)
 			{
-				Mat MidImage2 = src2.clone();
-				drawChessboardCorners(MidImage2, boardSize, Mat(pointBuf2), found2);
-				imshow("右相机角点获取情况", MidImage2);
-				waitKey(300);
+				Mat src_show_2 = src_2.clone();
+				cv::drawChessboardCorners(src_show_2, board_size, Mat(pts_buff_2), found_2);
+				cv::imshow("右相机角点获取情况", src_show_2);
+				cv::waitKey(300);
 			}
-			destroyWindow("右相机角点获取情况");
+
+			cv::destroyWindow("右相机角点获取情况");
 		}
 	}
+
+	// 对右视图的空间角点容器进行扩容
 	obj_pts_2.resize(img_pts_2.size(), obj_pts_2[0]);
 
 	/**************************************************************************************/
-	/********************************进行相机标定******************************************/
+	/********************************进行单目相机标定******************************************/
 	//通过calibrateCamera()函数进行相机标定
 	//主要为了得到相机的内参矩阵cameraMatrix、畸变系数矩阵distCoeffs
 	//另外可以通过函数返回的重投影误差大小评价相机标定的精度如何
 	//这里得到的相机外参矩阵不重要
 
-	//Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
-	//Mat distCoeffs = Mat::zeros(8, 1, CV_64F);//畸变系数的顺序是[k1,k2,p1,p2,k3,(k4,k5,k6)]
-	Mat cameraMatrix1 = Mat::eye(3, 3, CV_64F);
-	Mat distCoeffs1 = Mat::zeros(5, 1, CV_64F);
-	Mat cameraMatrix2 = Mat::eye(3, 3, CV_64F);
-	Mat distCoeffs2 = Mat::zeros(5, 1, CV_64F);
+	//Mat camera_matrix = Mat::eye(3, 3, CV_64F);
+	//Mat distCoeffs = Mat::zeros(8, 1, CV_64F);   // 畸变系数的顺序是[k1,k2,p1,p2,k3,(k4,k5,k6)]
+	Mat camera_matrix_1 = Mat::eye(3, 3, CV_64F);  // 左视图相机内参矩阵
+	Mat dist_coeffs_1 = Mat::zeros(5, 1, CV_64F);  // 左视图畸变系数 
+	Mat camera_matrix_2 = Mat::eye(3, 3, CV_64F);  // 右视图相机内参矩阵
+	Mat dist_coeffs_2 = Mat::zeros(5, 1, CV_64F);  // 右视图畸变系数
+
 	//vector<Mat> rvecs, tvecs;
-	vector<Mat> rvecs1, tvecs1;
-	vector<Mat> rvecs2, tvecs2;
+	vector<Mat> r_vecs_1, t_vecs_1;  // 左视图每张视图的位姿: 旋转矩阵和平移向量 
+	vector<Mat> r_vecs_2, t_vecs_2;  // 右视图每张视图的位姿: 旋转矩阵和平移向量 
+
 	/*
 	double re_project_err=calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix, distCoeffs, rvecs, tvecs,0);
 	//checkRange()函数---用于检查矩阵中的每一个元素是否在指定的一个数值区间之内
@@ -327,28 +353,48 @@ int main(int argc, char* argv[])
 	//一般地，K3应设置为0，除非使用鱼眼镜头（参考《learning opencv》第十一章）
 	//返回的distCoeffs1向量的长度由标志位flag决定，当flag设置为CV_CALIB_RATIONAL_MODEL时返回所有畸变参数（8个）
 	//当设置成其他flag时都返回5维的畸变系数，即[k1,k2,p1,p2,k3]
-	double re_project_err1 = calibrateCamera(obj_pts_1, img_pts_1, imageSize, cameraMatrix1, distCoeffs1, rvecs1, tvecs1, CALIB_FIX_K3);
-	//checkRange()函数---用于检查矩阵中的每一个元素的有效性
-	bool ok1 = checkRange(cameraMatrix1) && checkRange(distCoeffs1);
-	if (ok1)
+
+	double re_proj_err_1 = cv::calibrateCamera(obj_pts_1,
+		img_pts_1,
+		img_size,
+		camera_matrix_1,
+		dist_coeffs_1,
+		r_vecs_1,
+		t_vecs_1,
+		CALIB_FIX_K3);
+
+	//checkRange()函数  ---用于检查矩阵中的每一个元素的有效性
+	bool ok_1 = cv::checkRange(camera_matrix_1) && checkRange(dist_coeffs_1);
+	if (ok_1)
 	{
+		printf("\n");
 		cout << "左相机标定成功！" << endl;
-		cout << "左相机标定的重投影误差：" << re_project_err1 << endl;
-		//cout<<"左相机内参矩阵："<<endl<<cameraMatrix1<<endl;
-		//cout<<"左相机畸变系数矩阵："<<endl<<distCoeffs1<<endl;
+		cout << "左相机标定的重投影误差：" << re_proj_err_1 << "pixel" << endl;
+		//cout << "左相机内参矩阵：" << endl << camera_matrix_1 << endl;
+		//cout << "左相机畸变系数矩阵：" << endl<<dist_coeffs_1 << endl;
 	}
-	double re_project_err2 = calibrateCamera(obj_pts_2, img_pts_2, imageSize, cameraMatrix2, distCoeffs2, rvecs2, tvecs2, CALIB_FIX_K3);
-	bool ok2 = checkRange(cameraMatrix2) && checkRange(distCoeffs2);
-	if (ok2)
+
+	double re_project_err_2 = calibrateCamera(obj_pts_2,
+		img_pts_2,
+		img_size,
+		camera_matrix_2,
+		dist_coeffs_2,
+		r_vecs_2,
+		t_vecs_2,
+		CALIB_FIX_K3);
+
+	bool ok_2 = checkRange(camera_matrix_2) && checkRange(dist_coeffs_2);
+	if (ok_2)
 	{
+		printf("\n");
 		cout << "右相机标定成功！" << endl;
-		cout << "右相机标定的重投影误差：" << re_project_err2 << endl;
-		//cout<<"右相机内参矩阵："<<endl<<cameraMatrix2<<endl;
-		//cout<<"右相机畸变系数矩阵："<<endl<<distCoeffs2<<endl;
+		cout << "右相机标定的重投影误差：" << re_project_err_2 << "pixel" << endl;
+		//cout << "右相机内参矩阵：" << endl << camera_matrix_2 << endl;
+		//cout << "右相机畸变系数矩阵：" << endl << dist_coeffs_2 << endl;
 	}
 
 	/**************************************************************************************/
-	/********************************立体标定******************************************/
+	/********************************立体标定(双目标定)******************************************/
 	//利用stereoCalibrate()函数进行立体标定，得到4个矩阵：R 旋转矢量 T平移矢量 E本征矩阵 F基础矩阵
 	//同时可以得到两个相机的内参矩阵和畸变系数矩阵cameraMatrix1、distCoeffs1、cameraMatrix2、distCoeffs2
 	//也就是说其实可以不用事先单独给每个相机进行标定的
@@ -362,14 +408,15 @@ int main(int argc, char* argv[])
 	//则可以选择将CV_CALIB_FIX_INTRINSIC应用到stereoCalibrate()函数中，这样能减少计算的参数
 	//防止导致某些结果发散到无意义的值
 	//CV_CALIB_FIX_INTRINSIC这个参数是否使用还需后面做进一步权衡
+
 	Mat R = Mat::eye(3, 3, CV_64F);
 	Mat T = Mat::zeros(3, 1, CV_64F);
 	Mat E = Mat::zeros(3, 3, CV_64F);
 	Mat F = Mat::eye(3, 3, CV_64F); //R 旋转矢量 T平移矢量 E本征矩阵 F基础矩阵  
 	double rms = stereoCalibrate(obj_pts_1, img_pts_1, img_pts_2,
-		cameraMatrix1, distCoeffs1,
-		cameraMatrix2, distCoeffs2,
-		imageSize, R, T, E, F,
+		camera_matrix_1, dist_coeffs_1,
+		camera_matrix_2, dist_coeffs_2,
+		img_size, R, T, E, F,
 		CALIB_FIX_INTRINSIC,
 		TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, 100, 1e-5));
 	/*double rms = stereoCalibrate(objectPoints1, imagePoints1, imagePoints2,
@@ -378,11 +425,13 @@ int main(int argc, char* argv[])
 		imageSize, R, T, E, F,
 		CALIB_USE_INTRINSIC_GUESS|CV_CALIB_FIX_K3,
 		TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 30, 1e-6)); */
+
+	printf("\n");
 	cout << "Stereo Calibration done with RMS error = " << rms << endl;
-	cout << "左相机内参矩阵：" << endl << cameraMatrix1 << endl;
-	cout << "左相机畸变系数矩阵：" << endl << distCoeffs1 << endl;
-	cout << "右相机内参矩阵：" << endl << cameraMatrix2 << endl;
-	cout << "右相机畸变系数矩阵：" << endl << distCoeffs2 << endl;
+	cout << "左相机内参矩阵：" << endl << camera_matrix_1 << endl;
+	cout << "左相机畸变系数矩阵：" << endl << dist_coeffs_1 << endl;
+	cout << "右相机内参矩阵：" << endl << camera_matrix_2 << endl;
+	cout << "右相机畸变系数矩阵：" << endl << dist_coeffs_2 << endl;
 	cout << "R:" << endl << R << endl;
 	cout << "T:" << endl << T << endl;
 
@@ -396,15 +445,15 @@ int main(int argc, char* argv[])
 	FileStorage fs(filename, FileStorage::WRITE);
 	if (fs.isOpened())
 	{
-		fs << "width" << imageSize.width;
-		fs << "height" << imageSize.height;
-		fs << "board_width" << boardSize.width;
-		fs << "board_height" << boardSize.height;
+		fs << "width" << img_size.width;
+		fs << "height" << img_size.height;
+		fs << "board_width" << board_size.width;
+		fs << "board_height" << board_size.height;
 		fs << "nrFrames" << nFrames;
-		fs << "cameraMatrix1" << cameraMatrix1;
-		fs << "distCoeffs1" << distCoeffs1;
-		fs << "cameraMatrix2" << cameraMatrix2;
-		fs << "distCoeffs2" << distCoeffs2;
+		fs << "cameraMatrix1" << camera_matrix_1;
+		fs << "distCoeffs1" << dist_coeffs_1;
+		fs << "cameraMatrix2" << camera_matrix_2;
+		fs << "distCoeffs2" << dist_coeffs_2;
 		fs << "R" << R;
 		fs << "T" << T;
 		fs << "E" << E;
@@ -433,13 +482,13 @@ int main(int argc, char* argv[])
 }
 
 /*计算标定板上模块的实际物理坐标*/
-void calobjectPoints(vector<Point3f>& obj, Size &boardSize, int squareSize)
-{
-	for (int i = 0; i < boardSize.height; ++i)
+void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>& obj_pts)
+{// (points_per_row, points_per_col): (cols, rows)
+	for (int y = 0; y < board_size.height; ++y)
 	{
-		for (int j = 0; j < boardSize.width; ++j)
+		for (int x = 0; x < board_size.width; ++x)
 		{
-			obj.push_back(Point3f((float)(j*squareSize), (float)(i*squareSize), 0.f));
+			obj_pts.push_back(Point3f((float)(x*square_size), (float)(y*square_size), 0.0f));
 		}
 	}
 }
