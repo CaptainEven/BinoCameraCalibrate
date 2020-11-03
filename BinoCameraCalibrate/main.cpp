@@ -409,16 +409,19 @@ int main(int argc, char* argv[])
 	//防止导致某些结果发散到无意义的值
 	//CV_CALIB_FIX_INTRINSIC这个参数是否使用还需后面做进一步权衡
 
+	//R: 旋转矢量 T: 平移矢量 E: 本征矩阵 F: 基础矩阵
 	Mat R = Mat::eye(3, 3, CV_64F);
 	Mat T = Mat::zeros(3, 1, CV_64F);
 	Mat E = Mat::zeros(3, 3, CV_64F);
-	Mat F = Mat::eye(3, 3, CV_64F); //R 旋转矢量 T平移矢量 E本征矩阵 F基础矩阵  
-	double rms = stereoCalibrate(obj_pts_1, img_pts_1, img_pts_2,
+	Mat F = Mat::eye(3, 3, CV_64F);    
+
+	double rms = cv::stereoCalibrate(obj_pts_1, img_pts_1, img_pts_2,
 		camera_matrix_1, dist_coeffs_1,
 		camera_matrix_2, dist_coeffs_2,
 		img_size, R, T, E, F,
 		CALIB_FIX_INTRINSIC,
 		TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, 100, 1e-5));
+
 	/*double rms = stereoCalibrate(objectPoints1, imagePoints1, imagePoints2,
 		cameraMatrix1, distCoeffs1,
 		cameraMatrix2, distCoeffs2,
@@ -440,9 +443,11 @@ int main(int argc, char* argv[])
 	//保存.xml文件时需要注意2个问题：
 	//1 需要保存的Mat型变量定义时必须要初始化，否则程序编译会出错；
 	//2 保存时变量的标识符命名中不能出现“.”。
+
 	const string filename = "./Calibration_Result.xml";
 	//string filename="Calibration_Result.xml";
 	FileStorage fs(filename, FileStorage::WRITE);
+
 	if (fs.isOpened())
 	{
 		fs << "width" << img_size.width;
