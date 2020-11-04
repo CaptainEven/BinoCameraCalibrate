@@ -522,9 +522,10 @@ int main(int argc, char* argv[])
 	imwrite("./imgLeft.png", img_l);
 	imwrite("./imgRight.png", img_r);  // 保存图片
 
-	// 显示矫正效果: 创建IMG，高度一样，宽度双倍
+	/********************************显示矫正效果******************************************/
+	// 创建IMG，高度一样，宽度双倍
+	Mat img_origin(img_size.height*0.5, img_size.width, CV_8UC3);   // 矫正前的左-右视图
 	Mat img_rectify(img_size.height*0.5, img_size.width, CV_8UC3);  // 矫正后的左-右视图
-	Mat img_origin(img_size.height*0.5, img_size.width, CV_8UC3);  // 矫正前的左-右视图
 
 	// 浅拷贝
 	Mat img_rectify_part_1 = img_rectify(Rect(0, 0, img_size.width*0.5, img_size.height*0.5));  
@@ -534,7 +535,8 @@ int main(int argc, char* argv[])
 	resize(img_l, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
 	resize(img_r, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
 
-	for (int i = 0; i < img_rectify.rows; i += 16)  // 画横线
+	// 左-右视图画横线
+	for (int i = 0; i < img_rectify.rows; i += 16)  
 	{
 		line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
 	}
@@ -547,14 +549,17 @@ int main(int argc, char* argv[])
 	resize(img_1, img_part_1, img_part_1.size(), 0, 0, INTER_AREA);
 	resize(img_2, img_part_2, img_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
 
-	for (int i = 0; i < img_rectify.rows; i += 16)  // 画横线
+	// 左-右视图画横线
+	for (int i = 0; i < img_rectify.rows; i += 16)
 	{
 		line(img_origin, Point(0, i), Point(img_origin.cols, i), Scalar(0, 255, 0), 1, 8);
 	}
 
+	// 可视化
 	imshow("un-rectified", img_origin);
 	imshow("rectified", img_rectify);
 
+	// 输出可视化结果
 	imwrite("un-retified.png", img_origin);
 	imwrite("retified.png", img_rectify);
 
