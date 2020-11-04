@@ -46,8 +46,8 @@ int main(int argc, char* argv[])
 	vector<string> img_list_1;
 	vector<string> img_list_2;
 	Size img_size;
-	Size imageSize1;
-	Size imageSize2;
+	//Size img_size_1;
+	//Size img_size_2;
 
 	int calib_pattern = 0;
 	cout << "这是一个双目视觉程序！" << endl;
@@ -264,6 +264,7 @@ int main(int argc, char* argv[])
 		bool found_2 = cv::findChessboardCorners(src_2, board_size, pts_buff_2);
 		//bool found_2 = findChessboardCorners(src_2, board_size, pts_buff_2, CALIB_CB_ADAPTIVE_THRESH);
 		//bool found_2 = findChessboardCorners(src_2, board_size, pts_buff_2, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);  // 这一步比较费时
+
 		if (found_2)
 		{
 			Mat gray_img_2;
@@ -370,8 +371,6 @@ int main(int argc, char* argv[])
 		printf("\n");
 		cout << "左相机标定成功！" << endl;
 		cout << "左相机标定的重投影误差：" << re_proj_err_1 << "pixel" << endl;
-		//cout << "左相机内参矩阵：" << endl << camera_matrix_1 << endl;
-		//cout << "左相机畸变系数矩阵：" << endl<<dist_coeffs_1 << endl;
 	}
 
 	double re_project_err_2 = calibrateCamera(obj_pts_2,
@@ -444,32 +443,120 @@ int main(int argc, char* argv[])
 	//1 需要保存的Mat型变量定义时必须要初始化，否则程序编译会出错；
 	//2 保存时变量的标识符命名中不能出现“.”。
 
-	const string filename = "./Calibration_Result.xml";
-	//string filename="Calibration_Result.xml";
-	FileStorage fs(filename, FileStorage::WRITE);
+	const string calib_f_path = "./Calibration_Result.xml";
+	//string calib_f_path = "Calibration_Result.xml";
+	FileStorage fs_calib(calib_f_path, FileStorage::WRITE);
 
-	if (fs.isOpened())
+	if (fs_calib.isOpened())
 	{
-		fs << "width" << img_size.width;
-		fs << "height" << img_size.height;
-		fs << "board_width" << board_size.width;
-		fs << "board_height" << board_size.height;
-		fs << "nrFrames" << nFrames;
-		fs << "cameraMatrix1" << camera_matrix_1;
-		fs << "distCoeffs1" << dist_coeffs_1;
-		fs << "cameraMatrix2" << camera_matrix_2;
-		fs << "distCoeffs2" << dist_coeffs_2;
-		fs << "R" << R;
-		fs << "T" << T;
-		fs << "E" << E;
-		fs << "F" << F;
-		fs.release();
-		cout << "Calibration result has been saved successfully to \nF:\\Binocular_Stereo_Vision_Test\\Calibration_Result.xml" << endl;
+		fs_calib << "width" << img_size.width;
+		fs_calib << "height" << img_size.height;
+		fs_calib << "board_width" << board_size.width;
+		fs_calib << "board_height" << board_size.height;
+		fs_calib << "nFrames" << nFrames;
+		fs_calib << "cameraMatrix1" << camera_matrix_1;
+		fs_calib << "distCoeffs1" << dist_coeffs_1;
+		fs_calib << "cameraMatrix2" << camera_matrix_2;
+		fs_calib << "distCoeffs2" << dist_coeffs_2;
+		fs_calib << "R" << R;
+		fs_calib << "T" << T;
+		fs_calib << "E" << E;
+		fs_calib << "F" << F;
+		fs_calib.release();
+		cout << "Calibration result has been saved successfully to ./Calibration_Result.xml" << endl;
 	}
 	else
 	{
-		cout << "Error: can not save the Calibration result!!!!!" << endl;
+		cout << "Error: can not save the Calibration result!" << endl;
 	}
+
+	/********************************立体矫正******************************************/
+	Mat R1, R2, P1, P2, Q;
+	cv::stereoRectify(
+		camera_matrix_1,
+		dist_coeffs_1,
+		camera_matrix_2,
+		dist_coeffs_2,
+		img_size,
+		R, T,
+		R1, R2, P1, P2, Q
+	);
+	cout << "Q:" << endl << Q << endl;
+
+	const string q_f_path = "./Q.xml";
+	FileStorage fs_q(q_f_path, FileStorage::WRITE);
+	if (fs_q.isOpened())
+	{
+		fs_q << "Q" << Q;
+		fs_q.release();
+	}
+	else
+	{
+		cout << "Error: can not save the Q matrix!" << endl;
+	}
+
+	/********************************计算校正查找映射表******************************************/
+	// 功能：将原图像和校正后图像上的点一一映射。
+	Mat remapm_x_1 = Mat(img_size, CV_32FC1);
+	Mat remapm_y_1 = Mat(img_size, CV_32FC1);
+	Mat remapm_x_2 = Mat(img_size, CV_32FC1);
+	Mat remapm_y_2 = Mat(img_size, CV_32FC1);
+
+	cv::initUndistortRectifyMap(camera_matrix_1, dist_coeffs_1, R1, P1, img_size, CV_16SC2, remapm_x_1, remapm_y_1);
+	cv::initUndistortRectifyMap(camera_matrix_2, dist_coeffs_2, R2, P2, img_size, CV_16SC2, remapm_x_2, remapm_y_2);
+
+	Mat img_1 = imread(img_list_1[0], IMREAD_COLOR);
+	Mat img_2 = imread(img_list_2[0], IMREAD_COLOR);
+	Mat img_l, img_r;  // 矫正后的左，右视图
+	if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ⑤进行矫正，映射
+	{
+		remap(img_1, img_l, remapm_x_1, remapm_y_1, INTER_LINEAR);
+	}
+	if (!remapm_x_2.empty() && !remapm_y_2.empty())
+	{
+		remap(img_2, img_r, remapm_x_2, remapm_y_2, INTER_LINEAR);
+	}
+	imshow("imgLr", img_l);
+	imshow("imgRr", img_r);
+
+	imwrite("./imgLeft.png", img_l);
+	imwrite("./imgRight.png", img_r);  // 保存图片
+
+	// 显示矫正效果: 创建IMG，高度一样，宽度双倍
+	Mat img_rectify(img_size.height*0.5, img_size.width, CV_8UC3);  // 矫正后的左-右视图
+	Mat img_origin(img_size.height*0.5, img_size.width, CV_8UC3);  // 矫正前的左-右视图
+
+	// 浅拷贝
+	Mat img_rectify_part_1 = img_rectify(Rect(0, 0, img_size.width*0.5, img_size.height*0.5));  
+	Mat img_rectify_part_2 = img_rectify(Rect(img_size.width*0.5, 0, img_size.width*0.5, img_size.height*0.5));
+
+	// 填充
+	resize(img_l, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
+	resize(img_r, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+	for (int i = 0; i < img_rectify.rows; i += 16)  // 画横线
+	{
+		line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
+	}
+
+	// 浅拷贝
+	Mat img_part_1 = img_origin(Rect(0, 0, img_size.width*0.5, img_size.height*0.5));
+	Mat img_part_2 = img_origin(Rect(img_size.width*0.5, 0, img_size.width*0.5, img_size.height*0.5));
+
+	// 填充
+	resize(img_1, img_part_1, img_part_1.size(), 0, 0, INTER_AREA);
+	resize(img_2, img_part_2, img_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+	for (int i = 0; i < img_rectify.rows; i += 16)  // 画横线
+	{
+		line(img_origin, Point(0, i), Point(img_origin.cols, i), Scalar(0, 255, 0), 1, 8);
+	}
+
+	imshow("un-rectified", img_origin);
+	imshow("rectified", img_rectify);
+
+	imwrite("un-retified.png", img_origin);
+	imwrite("retified.png", img_rectify);
 
 	cout << "按任意键退出程序..." << endl;
 

@@ -4,7 +4,7 @@
 <height>720</height>
 <board_width>10</board_width>
 <board_height>8</board_height>
-<nrFrames>20</nrFrames>
+<nFrames>20</nFrames>
 <cameraMatrix1 type_id="opencv-matrix">
   <rows>3</rows>
   <cols>3</cols>
