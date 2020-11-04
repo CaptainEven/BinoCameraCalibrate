@@ -470,7 +470,7 @@ int main(int argc, char* argv[])
 		cout << "Error: can not save the Calibration result!" << endl;
 	}
 
-	/********************************立体矫正******************************************/
+	/********************************立体矫正********************************/
 	Mat R1, R2, P1, P2, Q;
 	cv::stereoRectify(
 		camera_matrix_1,
@@ -495,8 +495,8 @@ int main(int argc, char* argv[])
 		cout << "Error: can not save the Q matrix!" << endl;
 	}
 
-	/********************************计算校正查找映射表******************************************/
-	// 功能：将原图像和校正后图像上的点一一映射。
+	/********************************计算校正查找映射表********************************/
+	// 将原图像和校正后图像上的点一一映射。
 	Mat remapm_x_1 = Mat(img_size, CV_32FC1);
 	Mat remapm_y_1 = Mat(img_size, CV_32FC1);
 	Mat remapm_x_2 = Mat(img_size, CV_32FC1);
