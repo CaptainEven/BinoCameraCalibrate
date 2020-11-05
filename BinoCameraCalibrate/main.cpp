@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	Size img_size;                   // 输入标定图像的尺寸
 
 	int calib_pattern = 0;
-	cout << "这是一个双目视觉程序！" << endl;
+	cout << "这是一个双目视觉标定矫正程序！" << endl;
 	cout << "首先，请选择摄像机标定模式：1（从摄像头采集标定图像）或2（从图像序列获取标定图像）" << endl;
 	cin >> calib_pattern;
 
@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 		//inputCapture.set(CV_CAP_PROP_FRAME_WIDTH, 640);  
 	   // inputCapture.set(CV_CAP_PROP_FRAME_HEIGHT, 480); 
 
-		input_capture_1.set(CAP_PROP_FRAME_WIDTH, 960);//设置所采集图像的分辨率大小  
+		input_capture_1.set(CAP_PROP_FRAME_WIDTH, 960);  // 设置所采集图像的分辨率大小  
 		input_capture_1.set(CAP_PROP_FRAME_HEIGHT, 720);
 		input_capture_2.set(CAP_PROP_FRAME_WIDTH, 960);
 		input_capture_2.set(CAP_PROP_FRAME_HEIGHT, 720);
