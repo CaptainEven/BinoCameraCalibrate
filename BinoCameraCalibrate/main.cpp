@@ -40,11 +40,11 @@ int main(int argc, char* argv[])
 	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
 	float square_size = 20.0;        // 标定板上黑白格子的实际边长（mm）
 	int nFrames = 20;                // 用于标定的图像数目
-	string outputFileName;           // 输出文件的名称
-	bool show_undistorted = true;
-	vector<string> img_list_1;
-	vector<string> img_list_2;
-	Size img_size;
+	string output_file_name;         // 输出文件的名称
+	bool show_undistorted = true;    // 是否可视化畸变矫正
+	vector<string> img_list_1;       // 左视图图像名称(路径)列表
+	vector<string> img_list_2;       // 右视图图像名称(路径)列表
+	Size img_size;                   // 输入标定图像的尺寸
 
 	int calib_pattern = 0;
 	cout << "这是一个双目视觉程序！" << endl;
@@ -58,23 +58,22 @@ int main(int argc, char* argv[])
 	if (calib_pattern == 1)
 	{
 		//VideoCapture inputCapture;
-		VideoCapture inputCapture1;
-		VideoCapture inputCapture2;
-		//inputCapture.open(1);
-		inputCapture2.open(2);
-		inputCapture1.open(1);
+		VideoCapture input_capture_1;
+		VideoCapture input_capture_2;
+		input_capture_1.open(1);
+		input_capture_2.open(2);
 
 		//if(!inputCapture.isOpened()==true) return -1;
-		if (!inputCapture1.isOpened() == true) return -1;
-		if (!inputCapture2.isOpened() == true) return -1;
+		if (!input_capture_1.isOpened() == true) return -1;
+		if (!input_capture_2.isOpened() == true) return -1;
 
 		//inputCapture.set(CV_CAP_PROP_FRAME_WIDTH, 640);  
 	   // inputCapture.set(CV_CAP_PROP_FRAME_HEIGHT, 480); 
 
-		inputCapture1.set(CAP_PROP_FRAME_WIDTH, 960);//设置所采集图像的分辨率大小  
-		inputCapture1.set(CAP_PROP_FRAME_HEIGHT, 720);
-		inputCapture2.set(CAP_PROP_FRAME_WIDTH, 960);
-		inputCapture2.set(CAP_PROP_FRAME_HEIGHT, 720);
+		input_capture_1.set(CAP_PROP_FRAME_WIDTH, 960);//设置所采集图像的分辨率大小  
+		input_capture_1.set(CAP_PROP_FRAME_HEIGHT, 720);
+		input_capture_2.set(CAP_PROP_FRAME_WIDTH, 960);
+		input_capture_2.set(CAP_PROP_FRAME_HEIGHT, 720);
 
 		/*
 		inputCapture1.set(CV_CAP_PROP_FRAME_WIDTH, 640);//设置所采集图像的分辨率大小
@@ -96,8 +95,8 @@ int main(int argc, char* argv[])
 
 		while (1)
 		{
-			inputCapture1 >> src_img_1;
-			inputCapture2 >> src_img_2;
+			input_capture_1 >> src_img_1;
+			input_capture_2 >> src_img_2;
 
 			imshow("左相机(相机1)标定图像采集预览窗口", src_img_1);
 			imshow("右相机(相机2)标定图像采集预览窗口", src_img_2);
@@ -105,12 +104,11 @@ int main(int argc, char* argv[])
 
 			if (image_capture == true && capture_count < nFrames)
 			{
-				//Mat cap;
 				Mat cap1;
 				Mat cap2;
 
-				inputCapture1 >> cap1;
-				inputCapture2 >> cap2;
+				input_capture_1 >> cap1;
+				input_capture_2 >> cap2;
 				char address[100];
 
 				// 设置标定图像存放路径, 并保存
