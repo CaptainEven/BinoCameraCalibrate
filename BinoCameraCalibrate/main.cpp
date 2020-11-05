@@ -37,17 +37,14 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 
 int main(int argc, char* argv[])
 {
-	Size board_size = Size(10, 8);  // 标定棋盘格的内角点尺寸(如7x7): cols, rows
+	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
 	float square_size = 20.0;        // 标定板上黑白格子的实际边长（mm）
-	int nFrames = 20;               // 用于标定的图像数目
-	string outputFileName;          // 输出文件的名称
-	bool showUndistorsed = true;
-	//vector<string> imageList;
+	int nFrames = 20;                // 用于标定的图像数目
+	string outputFileName;           // 输出文件的名称
+	bool show_undistorted = true;
 	vector<string> img_list_1;
 	vector<string> img_list_2;
 	Size img_size;
-	//Size img_size_1;
-	//Size img_size_2;
 
 	int calib_pattern = 0;
 	cout << "这是一个双目视觉程序！" << endl;
@@ -85,12 +82,11 @@ int main(int argc, char* argv[])
 		inputCapture2.set(CV_CAP_PROP_FRAME_WIDTH, 640);
 		inputCapture2.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
 		*/
-		//namedWindow("标定图像采集预览窗口",CV_WINDOW_AUTOSIZE);
-		cv::namedWindow("左相机（相机1）标定图像采集预览窗口", WINDOW_AUTOSIZE);
-		cv::namedWindow("右相机（相机2）标定图像采集预览窗口", WINDOW_AUTOSIZE);
+
+		cv::namedWindow("左相机(相机1)标定图像采集预览窗口", WINDOW_AUTOSIZE);
+		cv::namedWindow("右相机(相机2)标定图像采集预览窗口", WINDOW_AUTOSIZE);
 
 		//设置鼠标事件函数，用于相机采集标定图像（在指定窗口双击鼠标左键一次采集一张图像）
-		//cvSetMouseCallback("标定图像采集预览窗口",on_mouse,NULL);
 		cv::setMouseCallback("左相机（相机1）标定图像采集预览窗口", on_mouse, NULL);
 
 		//Mat src_image;
@@ -100,40 +96,37 @@ int main(int argc, char* argv[])
 
 		while (1)
 		{
-			//inputCapture>>src_image;
 			inputCapture1 >> src_img_1;
 			inputCapture2 >> src_img_2;
 
-			//imshow("标定图像采集预览窗口",src_image);
-			imshow("左相机（相机1）标定图像采集预览窗口", src_img_1);
-			imshow("右相机（相机2）标定图像采集预览窗口", src_img_2);
+			imshow("左相机(相机1)标定图像采集预览窗口", src_img_1);
+			imshow("右相机(相机2)标定图像采集预览窗口", src_img_2);
 			waitKey(35);
+
 			if (image_capture == true && capture_count < nFrames)
 			{
 				//Mat cap;
 				Mat cap1;
 				Mat cap2;
-				//inputCapture>>cap;
+
 				inputCapture1 >> cap1;
 				inputCapture2 >> cap2;
 				char address[100];
 
-				//拼凑标定图像存放路径并保存
-				//sprintf(address,"Calibration_Image_Camera\\Image%d%s",capture_count+1,".jpg");
-				//imwrite(address,cap);
-				sprintf(address, "Calibration_Image_Camera\\Image_l%d%s", capture_count + 1, ".jpg");
+				// 设置标定图像存放路径, 并保存
+				sprintf(address, "Calibration_Image_Camera/Image_l%d%s", capture_count + 1, ".jpg");
 				imwrite(address, cap1);
-				sprintf(address, "Calibration_Image_Camera\\Image_r%d%s", capture_count + 1, ".jpg");
+				sprintf(address, "Calibration_Image_Camera/Image_r%d%s", capture_count + 1, ".jpg");
 				imwrite(address, cap2);
+
 				capture_count++;
 				image_capture = false;
 			}
 			else if (capture_count >= nFrames)
 			{
 				cout << "标定图像采集完毕！共采集到" << capture_count << "张标定图像。" << endl;
-				//destroyWindow("标定图像采集预览窗口");
-				destroyWindow("左相机（相机1）标定图像采集预览窗口");
-				destroyWindow("右相机（相机2）标定图像采集预览窗口");
+				destroyWindow("左相机(相机1)标定图像采集预览窗口");
+				destroyWindow("右相机(相机2)标定图像采集预览窗口");
 				image_capture = false;
 				break;
 			}
@@ -147,15 +140,12 @@ int main(int argc, char* argv[])
 		char name[100];
 		for (int i = 1; i <= nFrames; i++)
 		{
-			//sprintf(name,"Calibration_Image_Camera/Image%d%s",i,".jpg");
-			//imageList.push_back(name);
 			sprintf(name, "Calibration_Image_Camera1/Image_l%d%s", i, ".jpg");
 			img_list_1.push_back(name);
 			sprintf(name, "Calibration_Image_Camera1/Image_r%d%s", i, ".jpg");
 			img_list_2.push_back(name);
 		}
 	}
-	//cout<<"ImageList.size:"<<imageList.size()<<endl;
 	cout << "Image list 1 size:" << img_list_1.size() << endl;
 	cout << "Image list 2 size:" << img_list_2.size() << endl;
 
@@ -165,45 +155,13 @@ int main(int argc, char* argv[])
 	// 利用for循环得到角点的世界坐标Object Points（Z坐标假设为0）
 	//2 利用for循环和findChessboardCorners()函数得到与角点世界坐标向量objectPoints对应的图像像素坐标向量imagePoints
 
-	//vector<vector<Point2f> > imagePoints;//各个图像找到的角点的集合
-	//vector<vector<Point3f> > objectPoints(1);
 	vector<vector<Point2f>> img_pts_1;     // 存放左视图所有图像的平面角点 
 	vector<vector<Point3f>> obj_pts_1(1);  //暂时先定义一维的obj_pts_1，等确定了img_pts的维数之后再进行扩容
 	vector<vector<Point2f>> img_pts_2;     // 存放右视图所有图像的平面角点
 	vector<vector<Point3f>> obj_pts_2(1);  // 存放右视图所有空间角点
-	/*
-	//调用calobjectPoints()函数用于得到棋盘格角点的世界坐标集
-	calobjectPoints(objectPoints[0], boardSize,squareSize);
-
-	//可通过改变变量showChessboardCorner的值来确定是否展示获取角点后的图像
-	bool displayCorners = false;
-	for(int i=0;i<imageList.size();i++)
-	{
-		Mat src=imread(imageList[i],1);
-		//imshow("显示",src);
-		imageSize = src.size();
-		vector<Point2f> pointBuf;//某一副图像找到的角点
-		bool found=findChessboardCorners( src, boardSize, pointBuf, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_FAST_CHECK | CALIB_CB_NORMALIZE_IMAGE);//这一步比较费时
-		if(found)
-		{
-			Mat grayimage;
-			cvtColor(src, grayimage, COLOR_BGR2GRAY);
-			cornerSubPix( grayimage, pointBuf, Size(11,11),Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.1 ));
-			imagePoints.push_back(pointBuf);
-			if(displayCorners)
-			{
-				Mat MidImage=src.clone();
-				drawChessboardCorners( MidImage, boardSize, Mat(pointBuf), found );
-				imshow("角点获取情况",MidImage);
-				waitKey(300);
-			}
-			destroyWindow("角点获取情况");
-		}
-	}
-	objectPoints.resize(imagePoints.size(), objectPoints[0]);
-	*/
 
 	// ---------- 处理左视图
+	// 获取角点的世界坐标系坐标
 	add_obj_pts(board_size, (int)square_size, obj_pts_1[0]);
 
 	//可通过改变变量displayCorners1的值来确定是否展示获取角点后的图像
@@ -251,13 +209,13 @@ int main(int argc, char* argv[])
 	obj_pts_1.resize(img_pts_1.size(), obj_pts_1[0]);  // 复制(左视图图像个数)份
 
 	// ---------- 处理右视图
+	// 获取角点的世界坐标系坐标
 	add_obj_pts(board_size, (int)square_size, obj_pts_2[0]);
 
 	bool display_corners_2 = true;
 	for (int i = 0; i < img_list_2.size(); i++)
 	{
 		Mat src_2 = imread(img_list_2[i], 1);
-		//imageSize= src2.size();
 		vector<Point2f> pts_buff_2;
 
 		//使用不同的FLAG变量，标定结果差别很小
@@ -371,6 +329,28 @@ int main(int argc, char* argv[])
 		printf("\n");
 		cout << "左相机标定成功！" << endl;
 		cout << "左相机标定的重投影误差：" << re_proj_err_1 << "pixel" << endl;
+		cout << "左相机内参矩阵：" << endl << camera_matrix_1 << endl;
+		cout << "左相机畸变系数矩阵：" << endl << dist_coeffs_1 << endl;
+
+		if (show_undistorted == true)
+		{
+			for (int i = 0; i < img_list_1.size(); i++)
+			{
+				Mat temp = imread(img_list_1[i], 1);
+
+				//利用undistort()函数得到经过畸变矫正的图像
+				Mat undistort_view;
+
+				cv::undistort(temp, undistort_view, camera_matrix_1, dist_coeffs_1);
+
+				imshow("原畸变图像", temp);
+				imshow("畸变矫正图像", undistort_view);
+				waitKey(300);
+			}
+
+			destroyWindow("原畸变图像");
+			destroyWindow("畸变矫正图像");
+		}
 	}
 
 	double re_project_err_2 = calibrateCamera(obj_pts_2,
@@ -388,8 +368,28 @@ int main(int argc, char* argv[])
 		printf("\n");
 		cout << "右相机标定成功！" << endl;
 		cout << "右相机标定的重投影误差：" << re_project_err_2 << "pixel" << endl;
-		//cout << "右相机内参矩阵：" << endl << camera_matrix_2 << endl;
-		//cout << "右相机畸变系数矩阵：" << endl << dist_coeffs_2 << endl;
+		cout << "右相机内参矩阵：" << endl << camera_matrix_2 << endl;
+		cout << "右相机畸变系数矩阵：" << endl << dist_coeffs_2 << endl;
+
+		if (show_undistorted == true)
+		{
+			for (int i = 0; i < img_list_2.size(); i++)
+			{
+				Mat temp = imread(img_list_2[i], 1);
+
+				//利用undistort()函数得到经过畸变矫正的图像
+				Mat undistort_view;
+
+				cv::undistort(temp, undistort_view, camera_matrix_2, dist_coeffs_2);
+
+				imshow("原畸变图像", temp);
+				imshow("畸变矫正图像", undistort_view);
+				waitKey(300);
+			}
+
+			destroyWindow("原畸变图像");
+			destroyWindow("畸变矫正图像");
+		}
 	}
 
 	/**************************************************************************************/
@@ -444,7 +444,6 @@ int main(int argc, char* argv[])
 	//2 保存时变量的标识符命名中不能出现“.”。
 
 	const string calib_f_path = "./Calibration_Result.xml";
-	//string calib_f_path = "Calibration_Result.xml";
 	FileStorage fs_calib(calib_f_path, FileStorage::WRITE);
 
 	if (fs_calib.isOpened())
