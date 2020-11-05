@@ -311,7 +311,7 @@ int main(int argc, char* argv[])
 	//如果我们不需要K3，在初始化K3为O之后，可以使用标志CV_CALIB_FIX_K3，这样，标定函数不会改变K3的值
 	//一般地，K3应设置为0，除非使用鱼眼镜头（参考《learning opencv》第十一章）
 	//返回的distCoeffs1向量的长度由标志位flag决定，当flag设置为CV_CALIB_RATIONAL_MODEL时返回所有畸变参数（8个）
-	//当设置成其他flag时都返回5维的畸变系数，即[k1,k2,p1,p2,k3]
+	//当设置成其他flag时都返回5维的畸变系数，即[k1, k2, p1, p2, k3]
 
 	double re_proj_err_1 = cv::calibrateCamera(obj_pts_1,
 		img_pts_1,
@@ -404,7 +404,7 @@ int main(int argc, char* argv[])
 	//如果之前标定过的相机内参矩阵和畸变参数很满意，不想在立体标定时被进一步优化，可使用CV_CALIB_FIX_INTRINSIC
 	//根据官方文档建议，stereoCalibrate()函数计算的参数空间的维数很高（一次性得到很多结果）
 	//可能会导致某些结果发散到无意义的值，偏离正确结果，如果提前使用了calibrateCamera()函数对每个相机进行过标定
-	//则可以选择将CV_CALIB_FIX_INTRINSIC应用到stereoCalibrate()函数中，这样能减少计算的参数
+	//则可以选择将CALIB_FIX_INTRINSIC应用到stereoCalibrate()函数中，这样能减少计算的参数
 	//防止导致某些结果发散到无意义的值
 	//CV_CALIB_FIX_INTRINSIC这个参数是否使用还需后面做进一步权衡
 
@@ -509,11 +509,11 @@ int main(int argc, char* argv[])
 	Mat img_l, img_r;  // 矫正后的左，右视图
 	if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ⑤进行矫正，映射
 	{
-		remap(img_1, img_l, remapm_x_1, remapm_y_1, INTER_LINEAR);
+		remap(img_1, img_l, remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_l
 	}
 	if (!remapm_x_2.empty() && !remapm_y_2.empty())
 	{
-		remap(img_2, img_r, remapm_x_2, remapm_y_2, INTER_LINEAR);
+		remap(img_2, img_r, remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_r
 	}
 	imshow("imgLr", img_l);
 	imshow("imgRr", img_r);
