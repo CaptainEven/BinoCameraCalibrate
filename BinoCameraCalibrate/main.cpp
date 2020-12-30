@@ -38,7 +38,7 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 int main(int argc, char* argv[])
 {
 	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
-	float square_size = 20.0;        // 标定板上黑白格子的实际边长（mm）
+	const float square_size = 20.0;  // 标定板上黑白格子的实际边长（mm）
 	int nFrames = 20;                // 用于标定的图像数目
 	string output_file_name;         // 输出文件的名称
 	bool show_undistorted = true;    // 是否可视化畸变矫正
