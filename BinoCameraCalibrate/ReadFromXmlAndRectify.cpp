@@ -203,9 +203,5 @@ int readLeftRotateXml(const string& xml_path, vector<float>& l_rotate)
 }
 
 
-int runRectify()
-{
 
-	return 0;
-}
 

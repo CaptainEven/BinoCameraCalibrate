@@ -1,4 +1,5 @@
-#pragma once
+#ifndef READ_FROM_XML_RECTIFY
+#define READ_FROM_XML_RECTIFY
 
 #ifndef _CRT_SECURE_NO_WARNINGS
 # define _CRT_SECURE_NO_WARNINGS
@@ -33,5 +34,5 @@ int readRightDistXml(const string& xml_path, vector<float>& r_dists);
 // Rotation matrix
 int readLeftRotateXml(const string& xml_path, vector<float>& l_rotate);
 
-int runRectify();
 
+#endif

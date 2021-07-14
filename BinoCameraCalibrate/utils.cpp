@@ -64,6 +64,7 @@ const int getDirs(const string & path, vector<string>& dirs)
 	return int(dirs.size());
 }
 
+
 const int getFilesFormat(const string& path, const string& format, vector<string>& files)
 {
 	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
