@@ -1,19 +1,6 @@
 #include"ReadFromXmlAndRectify.h"
 
 
-void splitStr(const string& s, vector<string>& tokens, const char& delim=' ')
-{
-	tokens.clear();
-	size_t last_pos = s.find_first_not_of(delim, 0);
-	size_t pos = s.find(delim, last_pos);
-	while (last_pos != string::npos)
-	{
-		tokens.emplace_back(s.substr(last_pos, pos - last_pos));
-		last_pos = s.find_first_not_of(delim, pos);
-		pos = s.find(delim, last_pos);
-	}
-}
-
 
 int readParamsFromXml(const string& xml_path, const string& elem_name, vector<float>& params)
 {
@@ -55,7 +42,7 @@ int readParamsFromXml(const string& xml_path, const string& elem_name, vector<fl
 		for (const auto& token : tokens)
 		{
 			//cout << token << endl;
-			params.push_back(atof(token.c_str()));
+			params.push_back((float)atof(token.c_str()));
 		}
 	}
 
@@ -102,7 +89,7 @@ int readLeftDistXml(const string& xml_path, vector<float>& l_dists)
 		for (auto& token : tokens)
 		{
 			//cout << token << endl;
-			l_dists.push_back(atof(token.c_str()));
+			l_dists.push_back((float)atof(token.c_str()));
 		}
 	}
 	else
@@ -155,7 +142,7 @@ int readRightDistXml(const string& xml_path, vector<float>& r_dists)
 		for (auto& token : tokens)
 		{
 			//cout << token << endl;
-			r_dists.push_back(atof(token.c_str()));
+			r_dists.push_back((float)atof(token.c_str()));
 		}
 	}
 	else
@@ -208,7 +195,7 @@ int readLeftRotateXml(const string& xml_path, vector<float>& l_rotate)
 		for (auto& token : tokens)
 		{
 			//cout << token << endl;
-			l_rotate.push_back(atof(token.c_str()));
+			l_rotate.push_back((float)atof(token.c_str()));
 		}
 	}
 

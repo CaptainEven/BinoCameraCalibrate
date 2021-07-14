@@ -2,16 +2,6 @@
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <io.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <time.h>
-#include <stdio.h>
-#include <time.h>
-#include <windows.h>
-#include <string>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
@@ -21,7 +11,8 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 
-#include"ReadFromXmlAndRectify.h"
+#include "utils.h"
+#include "ReadFromXmlAndRectify.h"
 
 #define SHOW false
 
@@ -49,7 +40,6 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 
 int runCalibrateAndRectify();
 int readFromXmlAndRectify();
-void replaceStr(const string& src_str, const string &old_str, const string& new_str, string& ret, int count);
 
 const int getDirs(const string& path, vector<string>& dirs);
 const int getFilesFormat(const string& path, const string& format, vector<string>& files);
@@ -780,6 +770,7 @@ int readFromXmlAndRectify()
 
 	string right_img_path;
 	vector<string> tokens;
+	int cnt = 0;
 	for (const auto& left_img_path : left_img_paths)
 	{
 		splitStr(left_img_path, tokens, '/');
@@ -827,7 +818,7 @@ int readFromXmlAndRectify()
 		//	cv::imshow("imgLr", img_l);
 		//	cv::imshow("imgRr", img_r);
 		//}
-		printf("\nStereo rectifying done.\n");
+		//printf("\nStereo rectifying done.\n");
 
 		/********************************显示矫正效果******************************************/
 		if (SHOW)
@@ -879,89 +870,16 @@ int readFromXmlAndRectify()
 		cv::imwrite(left_rectified_path, left_img_rectified);
 		cv::imwrite(right_rectified_path, right_img_rectified);
 
-		cout << left_rectified_path + " saved.\n";
-		cout << right_rectified_path + " saved.\n";
+		if (cnt % 100 == 0)
+		{
+			cout << left_rectified_path + " saved.\n";
+			cout << right_rectified_path + " saved.\n";
+		}
+
+		cnt += 1;
 	}
 
 	return 0;
-}
-
-
-void replaceStr(const string& src_str,
-	const string &old_str, const string& new_str, 
-	string& ret, 
-	int count=-1)
-{
-	ret = string(src_str);  // string的拷贝构造
-
-	size_t pos = 0;
-	int l_count = 0;
-	if (-1 == count)  // replace all
-	{
-		count = ret.size();  // max size
-	}
-	while ((pos = ret.find(old_str, pos)) != string::npos)
-	{
-		ret.replace(pos, old_str.size(), new_str);
-		if (++l_count >= count)
-		{
-			break;
-		}
-
-		pos += new_str.size();
-	}
-}
-
-
-const int getDirs(const string & path, vector<string>& dirs)
-{
-	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
-	struct _finddata_t file_info;  // 文件信息 
-	string p;
-	if ((hFile = _findfirst(p.assign(path).append("/*").c_str(), &file_info)) != -1)  // 文件是否存在
-	{
-		do
-		{
-			if ((file_info.attrib & _A_SUBDIR))  // 判断是否为文件夹(目录)
-			{
-				if (strcmp(file_info.name, ".") != 0 && strcmp(file_info.name, "..") != 0)
-				{
-					dirs.push_back(p.assign(path).append("/").append(file_info.name));
-				}
-			}
-		} while (_findnext(hFile, &file_info) == 0);
-		_findclose(hFile);
-	}
-
-	return int(dirs.size());
-}
-
-const int getFilesFormat(const string& path, const string& format, vector<string>& files)
-{
-	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
-	struct _finddata_t file_info;  // 文件信息 
-	string p;
-	if ((hFile = _findfirst(p.assign(path).append("/*" + format).c_str(), &file_info)) != -1)  // 文件存在
-	{
-		do
-		{
-			if ((file_info.attrib & _A_SUBDIR))  // 判断是否为文件夹
-			{
-				if (strcmp(file_info.name, ".") != 0 && strcmp(file_info.name, "..") != 0)  // 文件夹名中不含"."和".."
-				{
-					files.push_back(p.assign(path).append("/").append(file_info.name));  // 保存文件夹名
-					getFilesFormat(p.assign(path).append("/").append(file_info.name), format, files);  // 递归遍历文件夹
-				}
-			}
-			else
-			{
-				files.push_back(p.assign(path).append("/").append(file_info.name));  // 如果不是文件夹，储存文件名
-			}
-		} while (_findnext(hFile, &file_info) == 0);
-		_findclose(hFile);
-	}
-
-	return int(files.size());
 }
 
 

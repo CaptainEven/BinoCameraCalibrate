@@ -5,10 +5,6 @@
 #endif
 
 #include <iostream>
-#include <sstream>
-#include <time.h>
-#include <stdio.h>
-#include <string.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
@@ -18,6 +14,7 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 
+#include "utils.h"
 #include "tinyxml2.h"
 
 
@@ -38,4 +35,3 @@ int readLeftRotateXml(const string& xml_path, vector<float>& l_rotate);
 
 int runRectify();
 
-void splitStr(const string& s, vector<string>& tokens, const char& delim);
