@@ -799,11 +799,13 @@ int readFromXmlAndRectify()
 		Mat left_img_rectified, right_img_rectified;
 		if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ¢Ý½øÐÐ½ÃÕý£¬Ó³Éä
 		{
-			cv::remap(left_img, left_img_rectified, remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_1_rectified
+			cv::remap(left_img, left_img_rectified,
+				remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_1_rectified
 		}
 		if (!remapm_x_2.empty() && !remapm_y_2.empty())
 		{
-			cv::remap(right_img, right_img_rectified, remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_2_rectified
+			cv::remap(right_img, right_img_rectified,
+				remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_2_rectified
 		}
 		//if (SHOW)
 		//{
