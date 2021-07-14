@@ -2,10 +2,15 @@
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#include <io.h>
 #include <iostream>
+#include <fstream>
 #include <sstream>
+#include <string>
 #include <time.h>
 #include <stdio.h>
+#include <time.h>
+#include <windows.h>
 #include <string>
 
 #include <opencv2/core.hpp>
@@ -16,14 +21,23 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 
+#include"ReadFromXmlAndRectify.h"
+
+#define SHOW false
 
 using namespace cv;
 using namespace std;
 
+
 void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>& obj_pts);
 
+// 定义全局变量
+bool image_capture = false;  // 定义全局变量，用于相机采集标定图像
+bool show_image = false;      // 是否显示中间标注过程
+char win_name_1[100];        // 窗口1名称
+char win_name_2[100];        // 窗口2名称
 
-bool image_capture = false;//定义全局变量，用于相机采集标定图像
+
 //鼠标事件响应函数，用于相机采集标定图像（双击鼠标左键一次采集一张图像）
 void on_mouse(int event, int x, int y, int flags, void* a)
 {
@@ -31,11 +45,25 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 	{
 		image_capture = true;
 	}
-
 }
+
+int runCalibrateAndRectify();
+int readFromXmlAndRectify();
+void replaceStr(const string& src_str, const string &old_str, const string& new_str, string& ret, int count);
+
+const int getDirs(const string& path, vector<string>& dirs);
+const int getFilesFormat(const string& path, const string& format, vector<string>& files);
 
 
 int main(int argc, char* argv[])
+{
+	//runCalibrateAndRectify();
+
+	readFromXmlAndRectify();
+}
+
+
+int runCalibrateAndRectify()
 {
 	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
 	const float square_size = 20.0;  // 标定板上黑白格子的实际边长（mm）
@@ -46,7 +74,7 @@ int main(int argc, char* argv[])
 	vector<string> img_list_2;       // 右视图图像名称(路径)列表
 	Size img_size;                   // 输入标定图像的尺寸
 
-	int calib_pattern = 0;
+	int calib_pattern = 0;  // 初始化
 	cout << "这是一个双目视觉标定矫正程序！" << endl;
 	cout << "首先，请选择摄像机标定模式：1（从摄像头采集标定图像）或2（从图像序列获取标定图像）" << endl;
 	cin >> calib_pattern;
@@ -64,43 +92,63 @@ int main(int argc, char* argv[])
 		input_capture_2.open(2);
 
 		//if(!inputCapture.isOpened()==true) return -1;
-		if (!input_capture_1.isOpened() == true) return -1;
-		if (!input_capture_2.isOpened() == true) return -1;
+		if (!input_capture_1.isOpened() == true)
+		{
+			printf("Open camera 1 failed.\n");
+			return -1;
+		}
+		if (!input_capture_2.isOpened() == true)
+		{
+			printf("Open camera 2 failed.\n");
+			return -1;
+		}
 
-		//inputCapture.set(CV_CAP_PROP_FRAME_WIDTH, 640);  
-	   // inputCapture.set(CV_CAP_PROP_FRAME_HEIGHT, 480); 
-
-		input_capture_1.set(CAP_PROP_FRAME_WIDTH, 960);  // 设置所采集图像的分辨率大小  
-		input_capture_1.set(CAP_PROP_FRAME_HEIGHT, 720);
+		// 设置所采集图像的分辨率大小  
+		input_capture_1.set(CAP_PROP_FRAME_WIDTH, 960);    // 640
+		input_capture_1.set(CAP_PROP_FRAME_HEIGHT, 720);   // 480
 		input_capture_2.set(CAP_PROP_FRAME_WIDTH, 960);
 		input_capture_2.set(CAP_PROP_FRAME_HEIGHT, 720);
 
-		/*
-		inputCapture1.set(CV_CAP_PROP_FRAME_WIDTH, 640);//设置所采集图像的分辨率大小
-		inputCapture1.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-		inputCapture2.set(CV_CAP_PROP_FRAME_WIDTH, 640);
-		inputCapture2.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-		*/
+		if (show_image)
+		{
+			cv::namedWindow("左相机(相机1)标定图像采集预览窗口", WINDOW_AUTOSIZE);
+			cv::namedWindow("右相机(相机2)标定图像采集预览窗口", WINDOW_AUTOSIZE);
 
-		cv::namedWindow("左相机(相机1)标定图像采集预览窗口", WINDOW_AUTOSIZE);
-		cv::namedWindow("右相机(相机2)标定图像采集预览窗口", WINDOW_AUTOSIZE);
-
-		//设置鼠标事件函数，用于相机采集标定图像（在指定窗口双击鼠标左键一次采集一张图像）
-		cv::setMouseCallback("左相机（相机1）标定图像采集预览窗口", on_mouse, NULL);
+			//设置鼠标事件函数，用于相机采集标定图像（在指定窗口双击鼠标左键一次采集一张图像）
+			cv::setMouseCallback("左相机（相机1）标定图像采集预览窗口", on_mouse, NULL);
+		}
 
 		//Mat src_image;
 		Mat src_img_1;
 		Mat src_img_2;
 		int capture_count = 0;
 
+		// 定时采集: 10s间隔
+		clock_t start_time;
+		clock_t end_time;
+		double  duration;
+		start_time = clock();
+
 		while (1)
 		{
 			input_capture_1 >> src_img_1;
 			input_capture_2 >> src_img_2;
 
-			imshow("左相机(相机1)标定图像采集预览窗口", src_img_1);
-			imshow("右相机(相机2)标定图像采集预览窗口", src_img_2);
-			waitKey(35);
+			if (show_image)  // 如果可以显示窗口
+			{
+				imshow("左相机(相机1)标定图像采集预览窗口", src_img_1);
+				imshow("右相机(相机2)标定图像采集预览窗口", src_img_2);
+				waitKey(50);  // 35
+			}
+			else  // 如果不能显示窗口, 每隔10秒采集一次
+			{
+				end_time = clock();
+				duration = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+				if (duration > 10)  // 间隔时间10s
+				{
+					image_capture = true;
+				}
+			}
 
 			if (image_capture == true && capture_count < nFrames)
 			{
@@ -109,13 +157,14 @@ int main(int argc, char* argv[])
 
 				input_capture_1 >> cap1;
 				input_capture_2 >> cap2;
-				char address[100];
 
 				// 设置标定图像存放路径, 并保存
-				sprintf(address, "Calibration_Image_Camera/Image_l%d%s", capture_count + 1, ".jpg");
-				imwrite(address, cap1);
-				sprintf(address, "Calibration_Image_Camera/Image_r%d%s", capture_count + 1, ".jpg");
-				imwrite(address, cap2);
+				char address[100];
+				sprintf(address, "./Calibration_Image_Camera/Image_l%d%s", capture_count + 1, ".jpg");
+				cv::imwrite(address, cap1);
+
+				sprintf(address, "./Calibration_Image_Camera/Image_r%d%s", capture_count + 1, ".jpg");
+				cv::imwrite(address, cap2);
 
 				capture_count++;
 				image_capture = false;
@@ -123,8 +172,12 @@ int main(int argc, char* argv[])
 			else if (capture_count >= nFrames)
 			{
 				cout << "标定图像采集完毕！共采集到" << capture_count << "张标定图像。" << endl;
-				destroyWindow("左相机(相机1)标定图像采集预览窗口");
-				destroyWindow("右相机(相机2)标定图像采集预览窗口");
+				if (show_image)
+				{
+					cv::destroyWindow("左相机(相机1)标定图像采集预览窗口");
+					cv::destroyWindow("右相机(相机2)标定图像采集预览窗口");
+				}
+
 				image_capture = false;
 				break;
 			}
@@ -138,10 +191,13 @@ int main(int argc, char* argv[])
 		char name[100];
 		for (int i = 1; i <= nFrames; i++)
 		{
-			sprintf(name, "Calibration_Image_Camera1/Image_l%d%s", i, ".jpg");
+			sprintf(name, "./Calibration_Image_Camera1/Image_l%d%s", i, ".jpg");
 			img_list_1.push_back(name);
-			sprintf(name, "Calibration_Image_Camera1/Image_r%d%s", i, ".jpg");
+			printf("%s loaded.\n", name);
+
+			sprintf(name, "./Calibration_Image_Camera1/Image_r%d%s", i, ".jpg");
 			img_list_2.push_back(name);
+			printf("%s loaded.\n", name);
 		}
 	}
 	cout << "Image list 1 size:" << img_list_1.size() << endl;
@@ -159,6 +215,8 @@ int main(int argc, char* argv[])
 	vector<vector<Point3f>> obj_pts_2(1);  // 存放右视图所有空间角点
 
 	// ---------- 处理左视图
+	printf("\nProcessing the right frames...\n");
+
 	// 获取角点的世界坐标系坐标
 	add_obj_pts(board_size, (int)square_size, obj_pts_1[0]);
 
@@ -191,22 +249,26 @@ int main(int argc, char* argv[])
 			// 存放当前左视图平面角点
 			img_pts_1.push_back(pts_buff_1);
 
-			if (display_corners_1)
+			if (show_image & display_corners_1)
 			{
+				sprintf(win_name_1, "左相机角点获取情况");
 				Mat src_show_1 = src_1.clone();
 				cv::drawChessboardCorners(src_show_1, board_size, Mat(pts_buff_1), found_1);
-				cv::imshow("左相机角点获取情况", src_show_1);
-				cv::waitKey(300);
+				cv::imshow(win_name_1, src_show_1);
+				cv::waitKey(500);
+				cv::destroyWindow(win_name_1);
 			}
-
-			cv::destroyWindow("左相机角点获取情况");
 		}
+
+		printf("[Left frame %d] finding corners done.\n", i + 1);
 	}
 
 	// 对object points向量进行扩容
 	obj_pts_1.resize(img_pts_1.size(), obj_pts_1[0]);  // 复制(左视图图像个数)份
 
 	// ---------- 处理右视图
+	printf("\nProcessing the right frames...\n");
+
 	// 获取角点的世界坐标系坐标
 	add_obj_pts(board_size, (int)square_size, obj_pts_2[0]);
 
@@ -231,18 +293,21 @@ int main(int argc, char* argv[])
 				Size(11, 11),
 				Size(-1, -1),
 				TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.1));
-
 			img_pts_2.push_back(pts_buff_2);
-			if (display_corners_2)
+
+			if (show_image & display_corners_2)
 			{
+				sprintf(win_name_1, "右相机角点获取情况");
+
 				Mat src_show_2 = src_2.clone();
 				cv::drawChessboardCorners(src_show_2, board_size, Mat(pts_buff_2), found_2);
-				cv::imshow("右相机角点获取情况", src_show_2);
-				cv::waitKey(300);
+				cv::imshow(win_name_1, src_show_2);
+				cv::waitKey(500);
+				cv::destroyWindow(win_name_1);
 			}
-
-			cv::destroyWindow("右相机角点获取情况");
 		}
+
+		printf("[Right frame %d] finding corners done.\n", i + 1);
 	}
 
 	// 对右视图的空间角点容器进行扩容
@@ -286,7 +351,7 @@ int main(int argc, char* argv[])
 				undistort(temp, undistort_view, cameraMatrix, distCoeffs);
 				imshow("原畸变图像",temp);
 				imshow("畸变矫正图像",undistort_view);
-				waitKey(300);
+				waitKey(500);
 			}
 			destroyWindow("原畸变图像");
 			destroyWindow("畸变矫正图像");
@@ -311,6 +376,7 @@ int main(int argc, char* argv[])
 	//返回的distCoeffs1向量的长度由标志位flag决定，当flag设置为CV_CALIB_RATIONAL_MODEL时返回所有畸变参数（8个）
 	//当设置成其他flag时都返回5维的畸变系数，即[k1, k2, p1, p2, k3]
 
+	printf("\nStart calibrate the left camera...\n");
 	double re_proj_err_1 = cv::calibrateCamera(obj_pts_1,
 		img_pts_1,
 		img_size,
@@ -338,19 +404,24 @@ int main(int argc, char* argv[])
 
 				//利用undistort()函数得到经过畸变矫正的图像
 				Mat undistort_view;
-
 				cv::undistort(temp, undistort_view, camera_matrix_1, dist_coeffs_1);
 
-				imshow("原畸变图像", temp);
-				imshow("畸变矫正图像", undistort_view);
-				waitKey(300);
+				if (show_image)
+				{
+					sprintf(win_name_1, "原畸变图像");
+					sprintf(win_name_2, "畸变矫正图像");
+					cv::imshow(win_name_1, temp);
+					cv::imshow(win_name_2, undistort_view);
+					cv::waitKey(500);
+					cv::destroyWindow(win_name_1);
+					cv::destroyWindow(win_name_2);
+				}
 			}
-
-			destroyWindow("原畸变图像");
-			destroyWindow("畸变矫正图像");
 		}
 	}
+	printf("Calibrate the left camera done.\n");
 
+	printf("\nStart calibrate the right camera...\n");
 	double re_project_err_2 = calibrateCamera(obj_pts_2,
 		img_pts_2,
 		img_size,
@@ -380,15 +451,22 @@ int main(int argc, char* argv[])
 
 				cv::undistort(temp, undistort_view, camera_matrix_2, dist_coeffs_2);
 
-				imshow("原畸变图像", temp);
-				imshow("畸变矫正图像", undistort_view);
-				waitKey(300);
-			}
+				if (show_image)
+				{
+					sprintf(win_name_1, "原畸变图像");
+					sprintf(win_name_2, "畸变矫正图像");
 
-			destroyWindow("原畸变图像");
-			destroyWindow("畸变矫正图像");
+					cv::imshow(win_name_1, temp);
+					cv::imshow(win_name_2, undistort_view);
+					cv::waitKey(500);
+					cv::destroyWindow(win_name_1);
+					cv::destroyWindow(win_name_2);
+				}
+			}
 		}
 	}
+	printf("Calibrate the right camera done.\n");
+
 
 	/**************************************************************************************/
 	/********************************立体标定(双目标定)******************************************/
@@ -406,16 +484,19 @@ int main(int argc, char* argv[])
 	//防止导致某些结果发散到无意义的值
 	//CV_CALIB_FIX_INTRINSIC这个参数是否使用还需后面做进一步权衡
 
+	printf("\nStart stereo calibrating...\n");
+
 	//R: 旋转矢量 T: 平移矢量 E: 本征矩阵 F: 基础矩阵
 	Mat R = Mat::eye(3, 3, CV_64F);
 	Mat T = Mat::zeros(3, 1, CV_64F);
 	Mat E = Mat::zeros(3, 3, CV_64F);
-	Mat F = Mat::eye(3, 3, CV_64F);    
+	Mat F = Mat::eye(3, 3, CV_64F);
 
-	double rms = cv::stereoCalibrate(obj_pts_1, img_pts_1, img_pts_2,
-		camera_matrix_1, dist_coeffs_1,
-		camera_matrix_2, dist_coeffs_2,
-		img_size, R, T, E, F,
+	double rms = cv::stereoCalibrate(obj_pts_1, img_pts_1, img_pts_2,  // input
+		camera_matrix_1, dist_coeffs_1,                                // input
+		camera_matrix_2, dist_coeffs_2,                                // input
+		img_size,                                                      // input
+		R, T, E, F,                                                    // output
 		CALIB_FIX_INTRINSIC,
 		TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, 100, 1e-5));
 
@@ -434,6 +515,7 @@ int main(int argc, char* argv[])
 	cout << "右相机畸变系数矩阵：" << endl << dist_coeffs_2 << endl;
 	cout << "R:" << endl << R << endl;
 	cout << "T:" << endl << T << endl;
+	printf("Stereo calibrating done.\n");
 
 	/**************************************************************************************/
 	/********************************保存标定结果******************************************/
@@ -468,15 +550,17 @@ int main(int argc, char* argv[])
 	}
 
 	/********************************立体矫正********************************/
+	printf("Start stereo rectifying...\n");
+
 	Mat R1, R2, P1, P2, Q;
 	cv::stereoRectify(
-		camera_matrix_1,
-		dist_coeffs_1,
-		camera_matrix_2,
-		dist_coeffs_2,
-		img_size,
-		R, T,
-		R1, R2, P1, P2, Q
+		camera_matrix_1,       // input
+		dist_coeffs_1,         // input
+		camera_matrix_2,       // input
+		dist_coeffs_2,         // input
+		img_size,              // input
+		R, T,                  // input
+		R1, R2, P1, P2, Q      // output
 	);
 	cout << "Q:" << endl << Q << endl;
 
@@ -502,78 +586,384 @@ int main(int argc, char* argv[])
 	cv::initUndistortRectifyMap(camera_matrix_1, dist_coeffs_1, R1, P1, img_size, CV_16SC2, remapm_x_1, remapm_y_1);
 	cv::initUndistortRectifyMap(camera_matrix_2, dist_coeffs_2, R2, P2, img_size, CV_16SC2, remapm_x_2, remapm_y_2);
 
-	Mat img_1 = imread(img_list_1[0], IMREAD_COLOR);
-	Mat img_2 = imread(img_list_2[0], IMREAD_COLOR);
-	Mat img_l, img_r;  // 矫正后的左，右视图
+	// 读取原始图
+	Mat img_1 = cv::imread(img_list_1[0], IMREAD_COLOR);
+	Mat img_2 = cv::imread(img_list_2[0], IMREAD_COLOR);
+
+	// 计算矫正后的左，右视图
+	Mat left_img_rect, right_img_rect;  
 	if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ⑤进行矫正，映射
 	{
-		remap(img_1, img_l, remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_l
+		cv::remap(img_1, left_img_rect, remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_l
 	}
 	if (!remapm_x_2.empty() && !remapm_y_2.empty())
 	{
-		remap(img_2, img_r, remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_r
+		cv::remap(img_2, right_img_rect, remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_r
 	}
-	imshow("imgLr", img_l);
-	imshow("imgRr", img_r);
+	if (show_image)  // 可视化
+	{	
+		cv::imshow("imgLr", left_img_rect);
+		cv::imshow("imgRr", right_img_rect);
+	}
+	printf("Stereo rectifying done.\n");
 
-	imwrite("./imgLeft.png", img_l);
-	imwrite("./imgRight.png", img_r);  // 保存图片
+	cv::imwrite("./imgLeft.png", left_img_rect);
+	cv::imwrite("./imgRight.png", right_img_rect);  // 保存图片
+	printf("%s written.\n%s written.\n", "./imgLeft.png", "./imgRight.png");
+
 
 	/********************************显示矫正效果******************************************/
 	// 创建IMG，高度一样，宽度双倍
-	Mat img_origin(img_size.height*0.5, img_size.width, CV_8UC3);   // 矫正前的左-右视图
-	Mat img_rectify(img_size.height*0.5, img_size.width, CV_8UC3);  // 矫正后的左-右视图
+	Mat img_origin(int(img_size.height*0.5), img_size.width, CV_8UC3);   // 矫正前的左-右视图
+	Mat img_rectify(int(img_size.height*0.5), img_size.width, CV_8UC3);  // 矫正后的左-右视图
 
 	// 浅拷贝
-	Mat img_rectify_part_1 = img_rectify(Rect(0, 0, img_size.width*0.5, img_size.height*0.5));  
-	Mat img_rectify_part_2 = img_rectify(Rect(img_size.width*0.5, 0, img_size.width*0.5, img_size.height*0.5));
+	Mat img_rectify_part_1 = img_rectify(Rect(0, 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+	Mat img_rectify_part_2 = img_rectify(Rect(int(img_size.width*0.5), 0, int(img_size.width*0.5), int(img_size.height*0.5)));
 
 	// 填充
-	resize(img_l, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
-	resize(img_r, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
-
-	// 左-右视图画横线
-	for (int i = 0; i < img_rectify.rows; i += 16)  
-	{
-		line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
-	}
-
-	// 浅拷贝
-	Mat img_part_1 = img_origin(Rect(0, 0, img_size.width*0.5, img_size.height*0.5));
-	Mat img_part_2 = img_origin(Rect(img_size.width*0.5, 0, img_size.width*0.5, img_size.height*0.5));
-
-	// 填充
-	resize(img_1, img_part_1, img_part_1.size(), 0, 0, INTER_AREA);
-	resize(img_2, img_part_2, img_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+	cv::resize(left_img_rect, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
+	cv::resize(right_img_rect, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
 
 	// 左-右视图画横线
 	for (int i = 0; i < img_rectify.rows; i += 16)
 	{
-		line(img_origin, Point(0, i), Point(img_origin.cols, i), Scalar(0, 255, 0), 1, 8);
+		cv::line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
+	}
+	printf("Draw lines for rectified left-right frame done.\n");
+
+	// 浅拷贝
+	Mat img_part_1 = img_origin(Rect(0, 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+	Mat img_part_2 = img_origin(Rect(int(img_size.width*0.5), 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+
+	// 填充
+	cv::resize(img_1, img_part_1, img_part_1.size(), 0, 0, INTER_AREA);
+	cv::resize(img_2, img_part_2, img_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+	// 左-右视图画横线
+	for (int i = 0; i < img_rectify.rows; i += 16)
+	{
+		cv::line(img_origin, Point(0, i), Point(img_origin.cols, i), Scalar(0, 255, 0), 1, 8);
+	}
+	printf("Draw lines for un-rectified left-right frame done.\n");
+
+	if (show_image)
+	{
+		// 可视化
+		cv::imshow("unrectified", img_origin);
+		cv::imshow("rectified", img_rectify);
 	}
 
-	// 可视化
-	imshow("un-rectified", img_origin);
-	imshow("rectified", img_rectify);
-
 	// 输出可视化结果
-	imwrite("un-retified.png", img_origin);
-	imwrite("retified.png", img_rectify);
-
+	cv::imwrite("./unretified.png", img_origin);
+	cv::imwrite("./retified.png", img_rectify);
+	printf("%s written.\n%s written.\n", "./un-retified.png", "./retified.png");
+	printf("Stereo calibration done.\n");
 	cout << "按任意键退出程序..." << endl;
 
-	//while (1)
+	//if (show_image)
 	//{
-	//	int a = waitKey(10);
-	//	if (char(a) == 27)
+	//	while (1)
 	//	{
-	//		break;
+	//		int a = waitKey(10);
+	//		if (char(a) == 27)
+	//		{
+	//			break;
+	//		}
 	//	}
 	//}
 
-	waitKey(0);
+	if (show_image)
+	{
+		cv::waitKey(0);
+	}
+
 	return 0;
 }
+
+
+int readFromXmlAndRectify()
+{
+	/*
+	Read parameters from xml file
+	*/
+	// ----- Read left, right intrinsic matrix
+	const string l_K_xml_path("./xmls/IntrinsicMatrix_left.xml");
+	const string r_K_xml_path("./xmls/IntrinsicMatrix_right.xml");
+
+	vector<float> l_K, r_K;
+	string elem_name("IntrinsicMatrix_left");
+	readParamsFromXml(l_K_xml_path, elem_name, l_K);
+
+	elem_name = "IntrinsicMatrix_right";
+	readParamsFromXml(r_K_xml_path, elem_name, r_K);
+
+	Mat l_K_mat(l_K, true);
+	Mat r_K_mat(r_K, true);
+	l_K_mat = l_K_mat.reshape(0, 3);
+	r_K_mat = r_K_mat.reshape(0, 3);
+	cout << "Left intrinsic matrix:\n" << l_K_mat << endl;
+	cout << "Right intrinsic matrix:\n" << r_K_mat << endl;
+
+	// ----- Read left and right camera distortion coefficients
+	const string l_dist_xml_path("./xmls/distCoeffL.xml");
+	const string r_dist_xml_path("./xmls/distCoeffR.xml");
+
+	vector<float> l_dists, r_dists;
+	elem_name = "distCoeffL";
+	readParamsFromXml(l_dist_xml_path, elem_name, l_dists);
+
+	elem_name = "distCoeffR";
+	readParamsFromXml(r_dist_xml_path, elem_name, r_dists);
+
+	Mat l_dist_mat(l_dists, true);
+	Mat r_dist_mat(r_dists, true);
+	l_dist_mat = l_dist_mat.reshape(0, 5);
+	r_dist_mat = r_dist_mat.reshape(0, 5);
+	cout << "Left distortion coefficients:\n" << l_dist_mat << endl;
+	cout << "Right distortion coefficients:\n" << r_dist_mat << endl;
+
+	// ----- Read left and right rotation matrix
+	const string l_rotate_xml_path("./xmls/Rl.xml");
+	const string r_rotate_xml_path("./xmls/Rr.xml");
+
+	vector<float> l_rotate, r_rotate;
+	elem_name = "Rl";
+	readParamsFromXml(l_rotate_xml_path, elem_name, l_rotate);
+
+	elem_name = "Rr";
+	readParamsFromXml(r_rotate_xml_path, elem_name, r_rotate);
+
+	Mat l_R_mat(l_rotate, true);
+	Mat r_R_mat(r_rotate, true);
+	l_R_mat = l_R_mat.reshape(0, 3);
+	r_R_mat = r_R_mat.reshape(0, 3);
+	cout << "Left rotation Mat:\n" << l_R_mat << endl;
+	cout << "Right rotation Mat:\n" << r_R_mat << endl;
+
+	// ----- Read left and right 3x4 projection matrix
+	const string l_P_xml_path("./xmls/Pl.xml");
+	const string r_P_xml_path("./xmls/Pr.xml");
+
+	vector<float> l_P, r_P;
+	elem_name = "Pl";
+	readParamsFromXml(l_P_xml_path, elem_name, l_P);
+
+	elem_name = "Pr";
+	readParamsFromXml(r_P_xml_path, elem_name, r_P);
+
+	Mat l_P_mat(l_P, true);
+	Mat r_P_mat(r_P, true);
+	l_P_mat = l_P_mat.reshape(0, 3);
+	r_P_mat = r_P_mat.reshape(0, 3);
+	cout << "Left projection Mat:\n" << l_P_mat << endl;
+	cout << "Right projection Mat:\n" << r_P_mat << endl;
+
+	/*
+	Read image pairs, do rectifying and save
+	*/
+	const string img_root("F:/PyScripts/LeftRightFrames");
+	const string img_rectified_root("E:/LeftRightFramesRectified");
+	const string left_rectified_dir = img_rectified_root + "/image_02";
+	const string right_rectified_dir = img_rectified_root + "/image_03";
+
+	vector<string> dir_paths;
+	getDirs(img_root, dir_paths);
+
+	vector<string> left_img_paths, right_img_paths;
+	getFilesFormat(dir_paths[0], ".jpg", left_img_paths);
+	getFilesFormat(dir_paths[1], ".jpg", right_img_paths);
+	assert(left_img_paths.size() == right_img_paths.size());
+
+	const string left_img_dir_name("image_02");
+	const string right_img_dir_name("image_03");
+
+	string right_img_path;
+	vector<string> tokens;
+	for (const auto& left_img_path : left_img_paths)
+	{
+		splitStr(left_img_path, tokens, '/');
+		const auto& img_name = tokens[tokens.size() - 1];
+
+		// get corresponding right image path
+		replaceStr(left_img_path, left_img_dir_name, right_img_dir_name, right_img_path, -1);
+		//cout << right_img_path << endl;
+
+		// 读取原始图像
+		Mat left_img = cv::imread(left_img_path, cv::IMREAD_COLOR);
+		Mat right_img = cv::imread(right_img_path, cv::IMREAD_COLOR);
+		if (left_img.empty() || right_img.empty())
+		{
+			cout << "Left or right image is empty.\n";
+			continue;
+		}
+
+		const Size& img_size = left_img.size();
+
+		/********************************计算校正查找映射表********************************/
+		// 将原图像和校正后图像上的点一一映射。
+		Mat remapm_x_1 = Mat(img_size, CV_32FC1);
+		Mat remapm_y_1 = Mat(img_size, CV_32FC1);
+		Mat remapm_x_2 = Mat(img_size, CV_32FC1);
+		Mat remapm_y_2 = Mat(img_size, CV_32FC1);
+
+		cv::initUndistortRectifyMap(l_K_mat, l_dist_mat, l_R_mat, l_P_mat, 
+			img_size, CV_16SC2, remapm_x_1, remapm_y_1);
+		cv::initUndistortRectifyMap(r_K_mat, r_dist_mat, r_R_mat, r_P_mat, 
+			img_size, CV_16SC2, remapm_x_2, remapm_y_2);
+
+		// 计算矫正后的左，右视图
+		Mat left_img_rectified, right_img_rectified;
+		if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ⑤进行矫正，映射
+		{
+			cv::remap(left_img, left_img_rectified, remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_1_rectified
+		}
+		if (!remapm_x_2.empty() && !remapm_y_2.empty())
+		{
+			cv::remap(right_img, right_img_rectified, remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_2_rectified
+		}
+		//if (SHOW)
+		//{
+		//	cv::imshow("imgLr", img_l);
+		//	cv::imshow("imgRr", img_r);
+		//}
+		printf("\nStereo rectifying done.\n");
+
+		/********************************显示矫正效果******************************************/
+		if (SHOW)
+		{
+			// 创建IMG，高度一样，宽度双倍
+			Mat img_origin(int(img_size.height*0.5), img_size.width, CV_8UC3);   // 矫正前的左-右视图
+			Mat img_rectify(int(img_size.height*0.5), img_size.width, CV_8UC3);  // 矫正后的左-右视图
+
+			// 浅拷贝
+			Mat img_rectify_part_1 = img_rectify(Rect(0, 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+			Mat img_rectify_part_2 = img_rectify(Rect(int(img_size.width*0.5), 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+
+			// resize填充
+			cv::resize(left_img_rectified, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
+			cv::resize(right_img_rectified, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+			// 左-右视图画横线
+			for (int i = 0; i < img_rectify.rows; i += 16)
+			{
+				cv::line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
+			}
+			printf("Draw lines for rectified left-right frame done.\n");
+
+			// 浅拷贝
+			Mat img_part_1 = img_origin(Rect(0, 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+			Mat img_part_2 = img_origin(Rect(int(img_size.width*0.5), 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+
+			// resize填充
+			cv::resize(left_img, img_part_1, img_part_1.size(), 0, 0, INTER_AREA);
+			cv::resize(right_img, img_part_2, img_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+			// 左-右视图画横线
+			for (int i = 0; i < img_rectify.rows; i += 16)
+			{
+				cv::line(img_origin, Point(0, i), Point(img_origin.cols, i), Scalar(0, 255, 0), 1, 8);
+			}
+			printf("Draw lines for un-rectified left-right frame done.\n");
+
+			// 可视化
+			cv::imshow("unrectified", img_origin);
+			cv::imshow("rectified", img_rectify);
+			cv::waitKey();
+		}
+
+		// 保存矫正之后的lefT-right图像对
+		const string left_rectified_path = left_rectified_dir + '/' + img_name;
+		const string right_rectified_path = right_rectified_dir + '/' + img_name;
+
+		cv::imwrite(left_rectified_path, left_img_rectified);
+		cv::imwrite(right_rectified_path, right_img_rectified);
+
+		cout << left_rectified_path + " saved.\n";
+		cout << right_rectified_path + " saved.\n";
+	}
+
+	return 0;
+}
+
+
+void replaceStr(const string& src_str,
+	const string &old_str, const string& new_str, 
+	string& ret, 
+	int count=-1)
+{
+	ret = string(src_str);  // string的拷贝构造
+
+	size_t pos = 0;
+	int l_count = 0;
+	if (-1 == count)  // replace all
+	{
+		count = ret.size();  // max size
+	}
+	while ((pos = ret.find(old_str, pos)) != string::npos)
+	{
+		ret.replace(pos, old_str.size(), new_str);
+		if (++l_count >= count)
+		{
+			break;
+		}
+
+		pos += new_str.size();
+	}
+}
+
+
+const int getDirs(const string & path, vector<string>& dirs)
+{
+	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
+	struct _finddata_t file_info;  // 文件信息 
+	string p;
+	if ((hFile = _findfirst(p.assign(path).append("/*").c_str(), &file_info)) != -1)  // 文件是否存在
+	{
+		do
+		{
+			if ((file_info.attrib & _A_SUBDIR))  // 判断是否为文件夹(目录)
+			{
+				if (strcmp(file_info.name, ".") != 0 && strcmp(file_info.name, "..") != 0)
+				{
+					dirs.push_back(p.assign(path).append("/").append(file_info.name));
+				}
+			}
+		} while (_findnext(hFile, &file_info) == 0);
+		_findclose(hFile);
+	}
+
+	return int(dirs.size());
+}
+
+const int getFilesFormat(const string& path, const string& format, vector<string>& files)
+{
+	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
+	struct _finddata_t file_info;  // 文件信息 
+	string p;
+	if ((hFile = _findfirst(p.assign(path).append("/*" + format).c_str(), &file_info)) != -1)  // 文件存在
+	{
+		do
+		{
+			if ((file_info.attrib & _A_SUBDIR))  // 判断是否为文件夹
+			{
+				if (strcmp(file_info.name, ".") != 0 && strcmp(file_info.name, "..") != 0)  // 文件夹名中不含"."和".."
+				{
+					files.push_back(p.assign(path).append("/").append(file_info.name));  // 保存文件夹名
+					getFilesFormat(p.assign(path).append("/").append(file_info.name), format, files);  // 递归遍历文件夹
+				}
+			}
+			else
+			{
+				files.push_back(p.assign(path).append("/").append(file_info.name));  // 如果不是文件夹，储存文件名
+			}
+		} while (_findnext(hFile, &file_info) == 0);
+		_findclose(hFile);
+	}
+
+	return int(files.size());
+}
+
 
 /*计算标定板上模块的实际物理坐标*/
 void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>& obj_pts)
