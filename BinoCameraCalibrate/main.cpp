@@ -45,14 +45,6 @@ const int getDirs(const string& path, vector<string>& dirs);
 const int getFilesFormat(const string& path, const string& format, vector<string>& files);
 
 
-int main(int argc, char* argv[])
-{
-	//runCalibrateAndRectify();
-
-	readFromXmlAndRectify();
-}
-
-
 int runCalibrateAndRectify()
 {
 	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
@@ -893,4 +885,12 @@ void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>&
 			obj_pts.push_back(Point3f((float)(x*square_size), (float)(y*square_size), 0.0f));
 		}
 	}
+}
+
+
+int main(int argc, char* argv[])
+{
+	//runCalibrateAndRectify();
+
+	readFromXmlAndRectify();
 }

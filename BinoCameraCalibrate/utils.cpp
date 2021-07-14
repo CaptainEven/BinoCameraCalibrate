@@ -41,7 +41,7 @@ void replaceStr(const string& src_str,
 }
 
 
-const int getDirs(const string & path, vector<string>& dirs)
+const int getDirs(const string& path, vector<string>& dirs)
 {
 	intptr_t hFile = 0;  // 文件句柄  64位下long 改为 intptr_t
 	struct _finddata_t file_info;  // 文件信息 
