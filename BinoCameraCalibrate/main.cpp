@@ -39,7 +39,7 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 }
 
 int runCalibrateAndRectify();
-int readFromXmlAndRectify();
+int readParamsFromXmlAndRectify();
 
 const int getDirs(const string& path, vector<string>& dirs);
 const int getFilesFormat(const string& path, const string& format, vector<string>& files);
@@ -664,7 +664,7 @@ int runCalibrateAndRectify()
 }
 
 
-int readFromXmlAndRectify()
+int readParamsFromXmlAndRectify()
 {
 	/*
 	Read parameters from xml file
@@ -740,6 +740,7 @@ int readFromXmlAndRectify()
 	r_P_mat = r_P_mat.reshape(0, 3);
 	cout << "Left projection Mat:\n" << l_P_mat << endl;
 	cout << "Right projection Mat:\n" << r_P_mat << endl;
+	cout << "Rectifying parameters read done.\n";
 
 	/*
 	Read image pairs, do rectifying and save
@@ -749,9 +750,11 @@ int readFromXmlAndRectify()
 	const string left_rectified_dir = img_rectified_root + "/image_02";
 	const string right_rectified_dir = img_rectified_root + "/image_03";
 
+	// get directories of the paird imgs
 	vector<string> dir_paths;
 	getDirs(img_root, dir_paths);
 
+	// get img paths of the paird imgs
 	vector<string> left_img_paths, right_img_paths;
 	getFilesFormat(dir_paths[0], ".jpg", left_img_paths);
 	getFilesFormat(dir_paths[1], ".jpg", right_img_paths);
@@ -760,6 +763,7 @@ int readFromXmlAndRectify()
 	const string left_img_dir_name("image_02");
 	const string right_img_dir_name("image_03");
 
+	// traverse each of the paird-img
 	string right_img_path;
 	vector<string> tokens;
 	int cnt = 0;
@@ -770,9 +774,8 @@ int readFromXmlAndRectify()
 
 		// get corresponding right image path
 		replaceStr(left_img_path, left_img_dir_name, right_img_dir_name, right_img_path, -1);
-		//cout << right_img_path << endl;
 
-		// 读取原始图像
+		// read original image
 		Mat left_img = cv::imread(left_img_path, cv::IMREAD_COLOR);
 		Mat right_img = cv::imread(right_img_path, cv::IMREAD_COLOR);
 		if (left_img.empty() || right_img.empty())
@@ -857,7 +860,7 @@ int readFromXmlAndRectify()
 			cv::waitKey();
 		}
 
-		// 保存矫正之后的lefT-right图像对
+		// 保存矫正之后的left-right图像对
 		const string left_rectified_path = left_rectified_dir + '/' + img_name;
 		const string right_rectified_path = right_rectified_dir + '/' + img_name;
 
@@ -870,6 +873,7 @@ int readFromXmlAndRectify()
 			cout << right_rectified_path + " saved.\n";
 		}
 
+		// update frame counting
 		cnt += 1;
 	}
 
@@ -890,9 +894,10 @@ void add_obj_pts(const Size& board_size, const int square_size, vector<Point3f>&
 }
 
 
+// the main function
 int main(int argc, char* argv[])
 {
 	//runCalibrateAndRectify();
 
-	readFromXmlAndRectify();
+	readParamsFromXmlAndRectify();
 }
