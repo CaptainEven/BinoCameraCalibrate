@@ -664,6 +664,14 @@ int runCalibrateAndRectify()
 }
 
 
+class CException
+{
+public:
+	string msg;
+	CException(string s) : msg(s) {}
+};
+
+
 int readParamsFromXmlAndRectify()
 {
 	/*
@@ -686,24 +694,6 @@ int readParamsFromXmlAndRectify()
 	r_K_mat = r_K_mat.reshape(0, 3);
 	cout << "Left intrinsic matrix:\n" << l_K_mat << endl;
 	cout << "Right intrinsic matrix:\n" << r_K_mat << endl;
-
-	// ----- Read left and right camera distortion coefficients
-	const string l_dist_xml_path("./xmls/distCoeffL.xml");
-	const string r_dist_xml_path("./xmls/distCoeffR.xml");
-
-	vector<float> l_dists, r_dists;
-	elem_name = "distCoeffL";
-	readParamsFromXml(l_dist_xml_path, elem_name, l_dists);
-
-	elem_name = "distCoeffR";
-	readParamsFromXml(r_dist_xml_path, elem_name, r_dists);
-
-	Mat l_dist_mat(l_dists, true);
-	Mat r_dist_mat(r_dists, true);
-	l_dist_mat = l_dist_mat.reshape(0, 5);
-	r_dist_mat = r_dist_mat.reshape(0, 5);
-	cout << "Left distortion coefficients:\n" << l_dist_mat << endl;
-	cout << "Right distortion coefficients:\n" << r_dist_mat << endl;
 
 	// ----- Read left and right rotation matrix
 	const string l_rotate_xml_path("./xmls/Rl.xml");
@@ -740,6 +730,86 @@ int readParamsFromXmlAndRectify()
 	r_P_mat = r_P_mat.reshape(0, 3);
 	cout << "Left projection Mat:\n" << l_P_mat << endl;
 	cout << "Right projection Mat:\n" << r_P_mat << endl;
+
+
+	// ----- Read left and right camera distortion coefficients
+	const string l_dist_xml_path("./xmls/distCoeffL.xml");
+	const string r_dist_xml_path("./xmls/distCoeffR.xml");
+
+	vector<float> l_dists, r_dists;
+	elem_name = "distCoeffL";
+	readParamsFromXml(l_dist_xml_path, elem_name, l_dists);
+
+	elem_name = "distCoeffR";
+	readParamsFromXml(r_dist_xml_path, elem_name, r_dists);
+
+	Mat l_dist_mat(l_dists, true);
+	Mat r_dist_mat(r_dists, true);
+	l_dist_mat = l_dist_mat.reshape(0, 5);
+	r_dist_mat = r_dist_mat.reshape(0, 5);
+	cout << "Left distortion coefficients:\n" << l_dist_mat << endl;
+	cout << "Right distortion coefficients:\n" << r_dist_mat << endl;
+
+	// Read Rotation vector and Translation vector
+	const string r_xml_path("./xmls/Rotation.xml");
+	const string t_xml_path("./xml/Translation.xml");
+
+	vector<float> r_vect, t_vect;
+
+	elem_name = "Rotation";
+	readParamsFromXml(r_xml_path, elem_name, r_vect);
+
+	elem_name = "Translation";
+	int ret = readParamsFromXml(t_xml_path, elem_name, t_vect);
+	if (ret < 0)
+	{
+		t_vect = { -158.29175859f, -1.62844041f, -2.16460339f };
+	}
+
+	Mat r_vect_mat(r_vect, true);
+	Mat t_mat(t_vect, true);
+
+	// 罗德里格斯变换: 旋转向量 ——> 旋转矩阵 
+	Mat r_mat;
+	cv::Rodrigues(r_vect_mat, r_mat);
+
+	cout << "Rotation matrix:\n" << r_mat << endl;
+	cout << "Translation vector:\n" << t_mat << endl;
+
+
+	// 计算重投影矩阵Q: 获取双目校正后的内参矩阵K
+	Size img_size(1280, 720);
+	Mat R1, R2, P1, P2, Q;
+	try
+	{
+		cv::stereoRectify(
+			l_K_mat,            
+			l_dist_mat,         
+			r_K_mat,            
+			r_dist_mat,         
+			img_size,           
+			r_mat, 
+			t_mat,       
+			R1, R2, P1, P2, Q   
+		);
+
+		//cv::stereoRectify(
+		//	camera_matrix_1,       // input
+		//	dist_coeffs_1,         // input
+		//	camera_matrix_2,       // input
+		//	dist_coeffs_2,         // input
+		//	img_size,              // input
+		//	R, T,                  // input
+		//	R1, R2, P1, P2, Q      // output
+		//);
+	}
+	catch (const std::exception&)
+	{
+		cout << "Rectifying failed!\n";
+	}
+	cout << "Q:" << endl << Q << endl;
+
+
 	cout << "Rectifying parameters read done.\n";
 
 	/*
@@ -784,7 +854,7 @@ int readParamsFromXmlAndRectify()
 			continue;
 		}
 
-		const Size& img_size = left_img.size();
+		auto img_size = left_img.size();
 
 		/********************************计算校正查找映射表********************************/
 		// 将原图像和校正后图像上的点一一映射。

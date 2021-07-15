@@ -9,7 +9,7 @@ int readParamsFromXml(const string& xml_path, const string& elem_name, vector<fl
 	XMLElement* ptr_opencv_storage = doc.RootElement();
 	if (!ptr_opencv_storage)
 	{
-		cout << "Read root node failed.\n";
+		cout << "[Warning]: Get root node failed when reading " << "[" + elem_name + "]" << endl;
 		return -1;
 	}
 
