@@ -926,7 +926,7 @@ int readParamsFromXmlAndRectify()
 	{
 		cout << "Rectifying failed!\n";
 	}
-	cout << "Q:" << endl << Q << endl;
+	cout << "Q matrix:" << endl << Q << endl;
 	const string q_f_path = "./xmls/Q.xml";
 	FileStorage fs_q(q_f_path, FileStorage::WRITE);
 	if (fs_q.isOpened())
