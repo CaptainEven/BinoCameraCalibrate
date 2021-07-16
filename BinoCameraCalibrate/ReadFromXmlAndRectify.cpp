@@ -2,7 +2,7 @@
 
 
 
-int readParamsFromXml(const string& xml_path, const string& elem_name, vector<float>& params)
+int readParamsFromXml(const string& xml_path, const string& elem_name, vector<double>& params)
 {
 	XMLDocument doc;
 	doc.LoadFile(xml_path.c_str());
@@ -42,7 +42,7 @@ int readParamsFromXml(const string& xml_path, const string& elem_name, vector<fl
 		for (const auto& token : tokens)
 		{
 			//cout << token << endl;
-			params.push_back((float)atof(token.c_str()));
+			params.push_back(atof(token.c_str()));
 		}
 	}
 

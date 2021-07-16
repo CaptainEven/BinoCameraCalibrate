@@ -41,10 +41,15 @@ void on_mouse(int event, int x, int y, int flags, void* a)
 int runCalibrateAndRectify();
 int readParamsFromXmlAndRectify();
 
+// to show rectifying
+int showStereoAlignment(const string& root, const Size& img_size, const string& ext);
+
 const int getDirs(const string& path, vector<string>& dirs);
 const int getFilesFormat(const string& path, const string& format, vector<string>& files);
 
 
+
+// ------------------------------------------
 int runCalibrateAndRectify()
 {
 	Size board_size = Size(10, 8);   // 标定棋盘格的内角点尺寸(如7x7): cols, rows
@@ -664,12 +669,76 @@ int runCalibrateAndRectify()
 }
 
 
-class CException
+//class CException
+//{
+//public:
+//	string msg;
+//	CException(string s) : msg(s) {}
+//};
+
+
+int showStereoAlignment(const string& root, const Size& img_size, const string& ext=".png")
 {
-public:
-	string msg;
-	CException(string s) : msg(s) {}
-};
+	// get directories of the paird imgs
+	vector<string> dir_paths;
+	getDirs(root, dir_paths);
+
+	// get img paths of the paird imgs
+	vector<string> left_img_paths, right_img_paths;
+	getFilesFormat(dir_paths[0], ext, left_img_paths);
+	getFilesFormat(dir_paths[1], ext, right_img_paths);
+	assert(left_img_paths.size() == right_img_paths.size());
+
+	if (left_img_paths.size() == 0)
+	{
+		cout << "[Err]: empty image dir.\n";
+		return -1;
+	}
+
+	const string left_img_dir_name("image_02");
+	const string right_img_dir_name("image_03");
+
+	string right_img_path;
+	int cnt = 0;
+	for (const auto& left_img_path : left_img_paths)
+	{
+		replaceStr(left_img_path, "image_02", "image_03", right_img_path, -1);
+
+		Mat left_img = cv::imread(left_img_path, cv::IMREAD_COLOR);
+		Mat right_img = cv::imread(right_img_path, cv::IMREAD_COLOR);
+		if (left_img.empty() || right_img.empty())
+		{
+			cout << "[Err]: Left or right image is empty!\n";
+			exit(-1);
+		}
+
+		// 创建IMG，高度一样，宽度双倍
+		Mat img_rectify(int(img_size.height*0.5), img_size.width, CV_8UC3);  // 矫正后的左-右视图
+
+		// 浅拷贝
+		Mat img_rectify_part_1 = img_rectify(Rect(0, 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+		Mat img_rectify_part_2 = img_rectify(Rect(int(img_size.width*0.5), 0, int(img_size.width*0.5), int(img_size.height*0.5)));
+
+		// resize填充
+		cv::resize(left_img, img_rectify_part_1, img_rectify_part_1.size(), 0, 0, INTER_AREA);
+		cv::resize(right_img, img_rectify_part_2, img_rectify_part_2.size(), 0, 0, INTER_AREA);  // 改变图像尺寸，调节0,0
+
+		// 左-右视图画横线
+		for (int i = 0; i < img_rectify.rows; i += 16)
+		{
+			cv::line(img_rectify, Point(0, i), Point(img_rectify.cols, i), Scalar(0, 255, 0), 1, 8);
+		}
+		printf("Draw lines for rectified left-right frame done for %d.\n", cnt);
+
+		// 可视化
+		cv::imshow("Image-Pair", img_rectify);
+		cv::waitKey();
+
+		cnt += 1;
+	}
+
+	return 0;
+}
 
 
 int readParamsFromXmlAndRectify()
@@ -681,12 +750,26 @@ int readParamsFromXmlAndRectify()
 	const string l_K_xml_path("./xmls/IntrinsicMatrix_left.xml");
 	const string r_K_xml_path("./xmls/IntrinsicMatrix_right.xml");
 
-	vector<float> l_K, r_K;
+	vector<double> l_K, r_K;
 	string elem_name("IntrinsicMatrix_left");
 	readParamsFromXml(l_K_xml_path, elem_name, l_K);
 
 	elem_name = "IntrinsicMatrix_right";
 	readParamsFromXml(r_K_xml_path, elem_name, r_K);
+
+	{
+		l_K = {
+			1150.96520619,  0.00000000,  566.82739051,
+			0.00000000,  1148.23163638,  459.93509031,
+			0.00000000,  0.00000000,  1.00000000
+		};
+
+		r_K = {
+			1139.30950514,  0.00000000,  648.95382247,
+			0.00000000,  1135.66052819,  485.02322134,
+			0.00000000,  0.00000000,  1.00000000
+		};
+	}
 
 	Mat l_K_mat(l_K, true);
 	Mat r_K_mat(r_K, true);
@@ -699,12 +782,28 @@ int readParamsFromXmlAndRectify()
 	const string l_rotate_xml_path("./xmls/Rl.xml");
 	const string r_rotate_xml_path("./xmls/Rr.xml");
 
-	vector<float> l_rotate, r_rotate;
+	vector<double> l_rotate, r_rotate;
 	elem_name = "Rl";
-	readParamsFromXml(l_rotate_xml_path, elem_name, l_rotate);
+	int ret = readParamsFromXml(l_rotate_xml_path, elem_name, l_rotate);
+	if (ret < 0)
+	{
+		l_rotate = {
+			0.99994399,  0.00566509, -0.00894005,
+			-0.00576325, 0.99992296, -0.01099325,
+			0.00887708,  0.01104416,  0.99989961
+		};
+	}
 
 	elem_name = "Rr";
-	readParamsFromXml(r_rotate_xml_path, elem_name, r_rotate);
+	ret = readParamsFromXml(r_rotate_xml_path, elem_name, r_rotate);
+	if (ret < 0)
+	{
+		r_rotate = {
+			0.99985362,  0.01028608,  0.01367277,
+			-0.01043638,  0.99988540,  0.01096683,
+			-0.01355840, -0.01110792,  0.99984638
+		};
+	}
 
 	Mat l_R_mat(l_rotate, true);
 	Mat r_R_mat(r_rotate, true);
@@ -717,12 +816,28 @@ int readParamsFromXmlAndRectify()
 	const string l_P_xml_path("./xmls/Pl.xml");
 	const string r_P_xml_path("./xmls/Pr.xml");
 
-	vector<float> l_P, r_P;
+	vector<double> l_P, r_P;
 	elem_name = "Pl";
-	readParamsFromXml(l_P_xml_path, elem_name, l_P);
+	ret = readParamsFromXml(l_P_xml_path, elem_name, l_P);
+	if (ret < 0)
+	{
+		l_P = {
+		1141.94608228,  0.00000000,  606.10649043,  0.00000000,
+		0.00000000,  1141.94608228,  470.76888035,  0.00000000,
+		0.00000000,  0.00000000,  1.00000000,  0.00000000
+		};
+	}
 
 	elem_name = "Pr";
-	readParamsFromXml(r_P_xml_path, elem_name, r_P);
+	ret = readParamsFromXml(r_P_xml_path, elem_name, r_P);
+	if (ret < 0)
+	{
+		r_P = {
+			1141.94608228,  0.00000000,  606.10649043, -180780.77651645,
+			0.00000000,  1141.94608228,  470.76888035,  0.00000000,
+			0.00000000,  0.00000000,  1.00000000,  0.00000000
+		};
+	}
 
 	Mat l_P_mat(l_P, true);
 	Mat r_P_mat(r_P, true);
@@ -731,17 +846,28 @@ int readParamsFromXmlAndRectify()
 	cout << "Left projection Mat:\n" << l_P_mat << endl;
 	cout << "Right projection Mat:\n" << r_P_mat << endl;
 
-
 	// ----- Read left and right camera distortion coefficients
 	const string l_dist_xml_path("./xmls/distCoeffL.xml");
 	const string r_dist_xml_path("./xmls/distCoeffR.xml");
 
-	vector<float> l_dists, r_dists;
+	vector<double> l_dists, r_dists;
 	elem_name = "distCoeffL";
-	readParamsFromXml(l_dist_xml_path, elem_name, l_dists);
+	ret = readParamsFromXml(l_dist_xml_path, elem_name, l_dists);
+	if (ret < 0)
+	{
+		l_dists = {
+			-0.38198221,  0.13206702, -0.02789491,  0.01244918,  0.00000000
+		};
+	}
 
 	elem_name = "distCoeffR";
-	readParamsFromXml(r_dist_xml_path, elem_name, r_dists);
+	ret = readParamsFromXml(r_dist_xml_path, elem_name, r_dists);
+	if (ret < 0)
+	{
+		r_dists = {
+			-0.38915232,  0.12921631, -0.02736358,  0.00185069,  0.00000000
+		};
+	}
 
 	Mat l_dist_mat(l_dists, true);
 	Mat r_dist_mat(r_dists, true);
@@ -754,16 +880,20 @@ int readParamsFromXmlAndRectify()
 	const string r_xml_path("./xmls/Rotation.xml");
 	const string t_xml_path("./xml/Translation.xml");
 
-	vector<float> r_vect, t_vect;
+	vector<double> r_vect, t_vect;
 
-	elem_name = "Rotation";
-	readParamsFromXml(r_xml_path, elem_name, r_vect);
-
-	elem_name = "Translation";
-	int ret = readParamsFromXml(t_xml_path, elem_name, t_vect);
+	elem_name = "Rotation";  
+	ret = readParamsFromXml(r_xml_path, elem_name, r_vect);  // 读取旋转向量
 	if (ret < 0)
 	{
-		t_vect = { -158.29175859f, -1.62844041f, -2.16460339f };
+		r_vect = { 0.02214207, -0.02243658,  0.00467347 };
+	}
+
+	elem_name = "Translation";
+	ret = readParamsFromXml(t_xml_path, elem_name, t_vect);
+	if (ret < 0)
+	{
+		t_vect = { -158.29175859, -1.62844041, -2.16460339 };
 	}
 
 	Mat r_vect_mat(r_vect, true);
@@ -776,10 +906,9 @@ int readParamsFromXmlAndRectify()
 	cout << "Rotation matrix:\n" << r_mat << endl;
 	cout << "Translation vector:\n" << t_mat << endl;
 
-
 	// 计算重投影矩阵Q: 获取双目校正后的内参矩阵K
-	Size img_size(1280, 720);
-	Mat R1, R2, P1, P2, Q;
+	const Size img_size = Size(1280, 720);
+	Mat R1, R2, P1, P2, Q;  // 输出验证
 	try
 	{
 		cv::stereoRectify(
@@ -792,25 +921,42 @@ int readParamsFromXmlAndRectify()
 			t_mat,       
 			R1, R2, P1, P2, Q   
 		);
-
-		//cv::stereoRectify(
-		//	camera_matrix_1,       // input
-		//	dist_coeffs_1,         // input
-		//	camera_matrix_2,       // input
-		//	dist_coeffs_2,         // input
-		//	img_size,              // input
-		//	R, T,                  // input
-		//	R1, R2, P1, P2, Q      // output
-		//);
 	}
 	catch (const std::exception&)
 	{
 		cout << "Rectifying failed!\n";
 	}
 	cout << "Q:" << endl << Q << endl;
+	const string q_f_path = "./xmls/Q.xml";
+	FileStorage fs_q(q_f_path, FileStorage::WRITE);
+	if (fs_q.isOpened())
+	{
+		fs_q << "Q" << Q;
+		fs_q.release();
+		cout << q_f_path + " saved.\n";
+	}
+	else
+	{
+		cout << "Error: can not save the Q matrix!" << endl;
+	}
 
+	cout << "R1 diff:\n" << R1 - l_R_mat << endl;
+	cout << "R2 diff:\n" << R2 - r_R_mat << endl;
+	cout << "P1 diff:\n" << P1 - l_P_mat << endl;
+	cout << "P2 diff:\n" << P2 - r_P_mat << endl;
+
+	l_R_mat = R1;
+	r_R_mat = R2;
+	l_P_mat = P1;
+	r_P_mat = P2;
+
+	cout << "R1 diff:\n" << R1 - l_R_mat << endl;
+	cout << "R2 diff:\n" << R2 - r_R_mat << endl;
+	cout << "P1 diff:\n" << P1 - l_P_mat << endl;
+	cout << "P2 diff:\n" << P2 - r_P_mat << endl;
 
 	cout << "Rectifying parameters read done.\n";
+
 
 	/*
 	Read image pairs, do rectifying and save
@@ -839,6 +985,7 @@ int readParamsFromXmlAndRectify()
 	int cnt = 0;
 	for (const auto& left_img_path : left_img_paths)
 	{
+		// get image name by splitting str
 		splitStr(left_img_path, tokens, '/');
 		const auto& img_name = tokens[tokens.size() - 1];
 
@@ -854,18 +1001,18 @@ int readParamsFromXmlAndRectify()
 			continue;
 		}
 
-		auto img_size = left_img.size();
+		const Size& img_size = left_img.size();
 
-		/********************************计算校正查找映射表********************************/
+		/*********计算校正查找映射表*********/
 		// 将原图像和校正后图像上的点一一映射。
 		Mat remapm_x_1 = Mat(img_size, CV_32FC1);
 		Mat remapm_y_1 = Mat(img_size, CV_32FC1);
 		Mat remapm_x_2 = Mat(img_size, CV_32FC1);
 		Mat remapm_y_2 = Mat(img_size, CV_32FC1);
 
-		cv::initUndistortRectifyMap(l_K_mat, l_dist_mat, l_R_mat, l_P_mat, 
+		cv::initUndistortRectifyMap(l_K_mat, l_dist_mat, R1, P1, 
 			img_size, CV_16SC2, remapm_x_1, remapm_y_1);
-		cv::initUndistortRectifyMap(r_K_mat, r_dist_mat, r_R_mat, r_P_mat, 
+		cv::initUndistortRectifyMap(r_K_mat, r_dist_mat, R2, P2, 
 			img_size, CV_16SC2, remapm_x_2, remapm_y_2);
 
 		// 计算矫正后的左，右视图
@@ -873,12 +1020,12 @@ int readParamsFromXmlAndRectify()
 		if (!remapm_x_1.empty() && !remapm_y_1.empty())  // ⑤进行矫正，映射
 		{
 			cv::remap(left_img, left_img_rectified,
-				remapm_x_1, remapm_y_1, INTER_LINEAR);  // img_1 -> img_1_rectified
+				remapm_x_1, remapm_y_1, INTER_LINEAR);  // left_img -> left_img_rectified
 		}
 		if (!remapm_x_2.empty() && !remapm_y_2.empty())
 		{
 			cv::remap(right_img, right_img_rectified,
-				remapm_x_2, remapm_y_2, INTER_LINEAR);  // img_2 -> img_2_rectified
+				remapm_x_2, remapm_y_2, INTER_LINEAR);  // right_img -> right_img_rectified
 		}
 		//if (SHOW)
 		//{
@@ -937,7 +1084,7 @@ int readParamsFromXmlAndRectify()
 		cv::imwrite(left_rectified_path, left_img_rectified);
 		cv::imwrite(right_rectified_path, right_img_rectified);
 
-		if (cnt % 100 == 0)
+		if (cnt % 1000 == 0)
 		{
 			cout << left_rectified_path + " saved.\n";
 			cout << right_rectified_path + " saved.\n";
@@ -970,4 +1117,12 @@ int main(int argc, char* argv[])
 	//runCalibrateAndRectify();
 
 	readParamsFromXmlAndRectify();
+
+	Size img_size = Size(1280, 720);
+	//showStereoAlignment("e:/img_pairs", img_size, ".png");
+	////showStereoAlignment("f:/PyScripts/LeftRightFrames", img_size, ".jpg");
+	showStereoAlignment("e:/LeftRightFramesRectified", img_size, ".jpg");
+
+	//img_size = Size(3130, 960);
+	//showStereoAlignment("e:/stereo_test", img_size, ".jpg");
 }

@@ -18,7 +18,7 @@ void splitStr(const string& s, vector<string>& tokens, const char& delim = ' ')
 void replaceStr(const string& src_str,
 	const string &old_str, const string& new_str,
 	string& ret,
-	int count = -1)
+	int count=-1)
 {
 	ret = string(src_str);  // stringµÄ¿½±´¹¹Ôì
 
@@ -39,6 +39,7 @@ void replaceStr(const string& src_str,
 		pos += new_str.size();
 	}
 }
+
 
 
 const int getDirs(const string& path, vector<string>& dirs)

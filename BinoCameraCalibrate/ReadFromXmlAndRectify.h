@@ -25,7 +25,7 @@ using namespace std;
 
 
 // Read parameters from xml file
-int readParamsFromXml(const string& xml_path, const string& elem_name, vector<float>& params);
+int readParamsFromXml(const string& xml_path, const string& elem_name, vector<double>& params);
 
 // Distortion coefficients 
 int readLeftDistXml(const string& xml_path, vector<float>& l_dists);
